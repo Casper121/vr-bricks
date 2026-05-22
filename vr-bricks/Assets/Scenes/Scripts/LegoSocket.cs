@@ -4,9 +4,10 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 public class LegoSocket : MonoBehaviour
 {
-  private XRSocketInteractor socketInteractor;
-    private Transform activeBottomAttach;
+    private XRSocketInteractor socketInteractor;
     private Transform dynamicAttachPoint; 
+    private const float BLOCK_HEIGHT_UNIT = 1.0f;
+    
 
     private void Awake()
     {
@@ -32,21 +33,6 @@ public class LegoSocket : MonoBehaviour
         }
     }
 
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("BottomAttach"))
-        {
-            activeBottomAttach = other.transform;
-
-            LegoBlock block = other.GetComponentInParent<LegoBlock>();
-            if (block != null)
-            {
-                Vector3 localOffset = -activeBottomAttach.localPosition;
-                dynamicAttachPoint.localPosition = localOffset;
-            }
-        }
-    }
-
     private void OnBlockSnapped(SelectEnterEventArgs args)
     {
         LegoBlock block = args.interactableObject.transform.gameObject.GetComponentInParent<LegoBlock>();
@@ -56,13 +42,11 @@ public class LegoSocket : MonoBehaviour
             Rigidbody rb = block.GetComponent<Rigidbody>();
             if (rb != null) rb.isKinematic = true;
 
-            if (activeBottomAttach == null)
-            {
-                float halfHeight = (block.height * 1.0f) / 2f;
-                dynamicAttachPoint.localPosition = new Vector3(0, halfHeight, 0);
-            }
+            float perfectY = block.height * BLOCK_HEIGHT_UNIT;
 
+            dynamicAttachPoint.localPosition = new Vector3(0f, perfectY, 0f);
             socketInteractor.showInteractableHoverMeshes = false;
+            
             block.takeBottomSpace(transform.position);
         }
     }
@@ -77,10 +61,11 @@ public class LegoSocket : MonoBehaviour
             if (rb != null) rb.isKinematic = false;
 
             block.releaseBottomSpace(transform.position);
+            socketInteractor.showInteractableHoverMeshes = true;
         }
-
+        
+        socketInteractor.showInteractableHoverMeshes = true;
         dynamicAttachPoint.localPosition = Vector3.zero;
-        activeBottomAttach = null; 
     }
 
     public void onBlockLeave() => socketInteractor.socketActive = false;
