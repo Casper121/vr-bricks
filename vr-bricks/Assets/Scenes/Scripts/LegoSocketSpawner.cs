@@ -17,7 +17,7 @@ public class LegoBlockSocketSpawner : MonoBehaviour
 
     [Header("Socket Prefab")]
     [Tooltip("Prefab that contains a LegoSocket component and optionally a LegoSocketInteractor.")]
-    public GameObject socketPrefab;
+    public GameObject anchorPointPrefab;
 
     // -------------------------------------------------------------------------
     // Inspector: Grid Size
@@ -247,7 +247,7 @@ public class LegoBlockSocketSpawner : MonoBehaviour
     /// </summary>
     private void SpawnSockets()
     {
-        if (socketPrefab == null)
+        if (anchorPointPrefab == null)
         {
             Debug.LogError($"{gameObject.name}: No socket prefab assigned.");
             return;
@@ -269,7 +269,7 @@ public class LegoBlockSocketSpawner : MonoBehaviour
     /// </summary>
     private void CreateSocket(int x, int z)
     {
-        GameObject socketObject = Instantiate(socketPrefab, transform);
+        GameObject socketObject = Instantiate(anchorPointPrefab, transform);
 
         socketObject.transform.localPosition = GetSocketLocalPosition(x, z);
         socketObject.transform.localRotation = Quaternion.identity;

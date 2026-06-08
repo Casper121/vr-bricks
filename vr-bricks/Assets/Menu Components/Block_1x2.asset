@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LegoBlockSpawnEntry
   displayName: 1x2
   blockPrefab: {fileID: 8615319719814704441, guid: 68681c3bbb3ffaa41950ef556cfd303e, type: 3}
-  thumbnail: {fileID: 0}
+  thumbnail: {fileID: 21300000, guid: 9c49081bb11064d43afef1e4194b2eb8, type: 3}
   buttonColor: {r: 0.2, g: 0.5, b: 1, a: 1}

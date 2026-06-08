@@ -1,4 +1,5 @@
 {
+    "version": 1,
     "name": "XR Device Simulator Controls",
     "maps": [
         {
@@ -72,7 +73,7 @@
                     "name": "Manipulate Right",
                     "type": "Button",
                     "id": "307cb608-f32e-48a3-8ce6-d1cd83a5fb90",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
@@ -81,7 +82,7 @@
                     "name": "Manipulate Head",
                     "type": "Button",
                     "id": "f5febf74-651b-4f73-8d0a-08b0acdabc4d",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
@@ -344,17 +345,6 @@
                 },
                 {
                     "name": "",
-                    "id": "e791caef-78d3-4f68-9104-212f73ac0642",
-                    "path": "<Keyboard>/space",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Manipulate Right",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "b2c1b1cd-6ea7-45b6-b68f-17b3662b4d3a",
                     "path": "<Mouse>/delta",
                     "interactions": "",
@@ -570,6 +560,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "Hand-Controller Mode",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "7447fdb8-17c5-4a24-a0eb-c3ef2bfeed54",
+                    "path": "<Mouse>/leftButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Manipulate Right",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

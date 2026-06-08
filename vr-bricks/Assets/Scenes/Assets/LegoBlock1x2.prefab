@@ -171,14 +171,10 @@ MonoBehaviour:
   width: 1
   length: 2
   height: 0.4
-  socketLayer:
-    serializedVersion: 2
-    m_Bits: 8
   studSizeX: 0.4
   studSizeZ: 0.4
   blockHeightScale: 1
-  gizmoOffsetX: 0
-  gizmoOffsetZ: 0
+  gizmoOffset: {x: 0, y: 0, z: 0}
 --- !u!114 &4794190987906228320
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -342,7 +338,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 94507dfc8db104b4692f3f6a65fe8b63, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LegoBlockSocketSpawner
-  socketPrefab: {fileID: 6720443631050265724, guid: 108fa62865af05d4e8661d653e4bd54f, type: 3}
+  anchorPointPrefab: {fileID: 6720443631050265724, guid: 108fa62865af05d4e8661d653e4bd54f, type: 3}
   blockWidth: 1
   blockLength: 2
   socketY: 0
@@ -350,6 +346,9 @@ MonoBehaviour:
   offsetZ: -0.2
   studSpacingX: 0.4
   studSpacingZ: 0.4
+  hideGeneratedSocketRenderers: 0
+  drawSocketGizmos: 1
+  gizmoSize: 0.04
 --- !u!114 &2084290812632792858
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -368,16 +367,6 @@ MonoBehaviour:
   ghostColorValid: {r: 0.3, g: 0.6, b: 1, a: 0.4}
   ghostColorInvalid: {r: 1, g: 0.2, b: 0.2, a: 0.4}
   visualRoot: {fileID: 4278156594561981776}
-  rotationAxis: {x: 0, y: 1, z: 0}
-  dbg_State: 
-  dbg_TargetSocket: 
-  dbg_YawOffset: 
-  dbg_Step: 
-  dbg_StartXZ: 
-  dbg_EffWL: 
-  dbg_GhostPos: 
-  dbg_IsValid: 
-  dbg_LockReason: 
 --- !u!114 &4090887122796177523
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -391,4 +380,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LegoBlockInput
   rotateAction: {fileID: -7556612153624368767, guid: c348712bda248c246b8c49b3db54643f, type: 3}
-  allowKeyboardFallback: 1
+  allowKeyboardFallback: 0
