@@ -3,30 +3,56 @@ using UnityEngine.UI;
 using System.Collections;
 
 /// <summary>
-/// Three wrist buttons on the left controller.
-/// Buttons hide when any panel is open or closing.
-/// When all panels are closed, the buttons smoothly appear again.
+/// Controls the three wrist buttons on the left controller.
+/// 
+/// The wrist buttons can open:
+/// - the block menu,
+/// - the music player panel,
+/// - the main menu panel.
+/// 
+/// While any connected panel is open or closing, the wrist buttons hide.
+/// When all panels are closed, the wrist buttons smoothly appear again.
 /// </summary>
 public class LegoWristButtons : MonoBehaviour
 {
+    // -------------------------------------------------------------------------
+    // Inspector: Button References
+    // -------------------------------------------------------------------------
+
     [Header("Button References")]
     public Button blockMenuButton;
     public Button musicPlayerButton;
     public Button mainMenuButton;
+
+    // -------------------------------------------------------------------------
+    // Inspector: Button Icons
+    // -------------------------------------------------------------------------
 
     [Header("Button Icons")]
     public Sprite blockMenuIcon;
     public Sprite musicPlayerIcon;
     public Sprite mainMenuIcon;
 
+    // -------------------------------------------------------------------------
+    // Inspector: Panels
+    // -------------------------------------------------------------------------
+
     [Header("Panels to Open")]
     public LegoHandMenu blockMenu;
     public GameObject musicPlayerPanel;
     public GameObject mainMenuPanel;
 
+    // -------------------------------------------------------------------------
+    // Inspector: Buttons Root
+    // -------------------------------------------------------------------------
+
     [Header("Buttons Root")]
     [Tooltip("The GameObject that contains all three buttons. Gets hidden when a panel is open or closing.")]
     public GameObject buttonsRoot;
+
+    // -------------------------------------------------------------------------
+    // Inspector: Return Animation
+    // -------------------------------------------------------------------------
 
     [Header("Buttons Return Animation")]
     [Tooltip("How long the wrist buttons smooth-in animation takes.")]
@@ -35,7 +61,7 @@ public class LegoWristButtons : MonoBehaviour
     [Tooltip("Start scale for the smooth-in animation. 0.85 = subtle, 0 = full pop from nothing.")]
     public float startScale = 0.85f;
 
-    [Tooltip("If enabled, the buttons fade in softly. This does NOT disable/interactable-grey the buttons.")]
+    [Tooltip("If enabled, the buttons fade in softly. This does NOT disable or grey out the buttons.")]
     public bool useFade = false;
 
     // -------------------------------------------------------------------------
@@ -54,24 +80,7 @@ public class LegoWristButtons : MonoBehaviour
 
     private void Awake()
     {
-        if (buttonsRoot != null)
-        {
-            buttonsOriginalScale = buttonsRoot.transform.localScale;
-
-            if (useFade)
-            {
-                buttonsCanvasGroup = buttonsRoot.GetComponent<CanvasGroup>();
-
-                if (buttonsCanvasGroup == null)
-                    buttonsCanvasGroup = buttonsRoot.AddComponent<CanvasGroup>();
-
-                // Important:
-                // Never set interactable/blocksRaycasts to false during show,
-                // because that can make Unity buttons look grey/disabled.
-                buttonsCanvasGroup.interactable = true;
-                buttonsCanvasGroup.blocksRaycasts = true;
-            }
-        }
+        CacheButtonsRoot();
     }
 
     private void Start()
@@ -92,6 +101,34 @@ public class LegoWristButtons : MonoBehaviour
     // Setup
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Caches the original root scale and prepares the optional CanvasGroup fade.
+    /// </summary>
+    private void CacheButtonsRoot()
+    {
+        if (buttonsRoot == null)
+            return;
+
+        buttonsOriginalScale = buttonsRoot.transform.localScale;
+
+        if (!useFade)
+            return;
+
+        buttonsCanvasGroup = buttonsRoot.GetComponent<CanvasGroup>();
+
+        if (buttonsCanvasGroup == null)
+            buttonsCanvasGroup = buttonsRoot.AddComponent<CanvasGroup>();
+
+        // Important:
+        // Never set interactable/blocksRaycasts to false during show,
+        // because that can make Unity buttons look grey/disabled.
+        buttonsCanvasGroup.interactable = true;
+        buttonsCanvasGroup.blocksRaycasts = true;
+    }
+
+    /// <summary>
+    /// Assigns icon, click action, button colors, and hover animation.
+    /// </summary>
     private void SetupButton(Button btn, Sprite icon, UnityEngine.Events.UnityAction action)
     {
         if (btn == null)
@@ -128,6 +165,9 @@ public class LegoWristButtons : MonoBehaviour
     // Visibility
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Immediately applies the correct visibility state when the scene starts.
+    /// </summary>
     private void ForceRefreshVisibility()
     {
         bool shouldShow = !AnyPanelOpenOrClosing();
@@ -148,6 +188,9 @@ public class LegoWristButtons : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Shows or hides the wrist buttons when panel visibility changes.
+    /// </summary>
     private void UpdateButtonsVisibility()
     {
         if (buttonsRoot == null)
@@ -166,6 +209,9 @@ public class LegoWristButtons : MonoBehaviour
             HideButtonsImmediately();
     }
 
+    /// <summary>
+    /// Returns true if any connected panel is open or currently closing.
+    /// </summary>
     private bool AnyPanelOpenOrClosing()
     {
         return IsOpenOrClosing(blockMenu) ||
@@ -173,6 +219,9 @@ public class LegoWristButtons : MonoBehaviour
                IsOpen(mainMenuPanel);
     }
 
+    /// <summary>
+    /// Returns true if the LEGO hand menu is open or in its close animation.
+    /// </summary>
     private bool IsOpenOrClosing(LegoHandMenu menu)
     {
         if (menu == null)
@@ -181,11 +230,17 @@ public class LegoWristButtons : MonoBehaviour
         return menu.IsOpenOrClosing;
     }
 
+    /// <summary>
+    /// Returns true if the given panel GameObject is active.
+    /// </summary>
     private bool IsOpen(GameObject panel)
     {
         return panel != null && panel.activeSelf;
     }
 
+    /// <summary>
+    /// Hides the wrist buttons immediately.
+    /// </summary>
     private void HideButtonsImmediately()
     {
         if (buttonsRoot == null)
@@ -208,6 +263,9 @@ public class LegoWristButtons : MonoBehaviour
         buttonsRoot.SetActive(false);
     }
 
+    /// <summary>
+    /// Starts the smooth return animation for the wrist buttons.
+    /// </summary>
     private void ShowButtonsSmooth()
     {
         if (buttonsRoot == null)
@@ -220,6 +278,9 @@ public class LegoWristButtons : MonoBehaviour
         showRoutine = StartCoroutine(ShowButtonsRoutine());
     }
 
+    /// <summary>
+    /// Smoothly scales and optionally fades the wrist buttons back in.
+    /// </summary>
     private IEnumerator ShowButtonsRoutine()
     {
         if (buttonsRoot == null)
@@ -264,6 +325,9 @@ public class LegoWristButtons : MonoBehaviour
         showRoutine = null;
     }
 
+    /// <summary>
+    /// Cubic easing used for the smooth button return animation.
+    /// </summary>
     private float EaseOutCubic(float t)
     {
         t = Mathf.Clamp01(t);
@@ -274,6 +338,9 @@ public class LegoWristButtons : MonoBehaviour
     // Button Actions
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Opens or closes the LEGO block menu.
+    /// </summary>
     private void OnBlockMenuPressed()
     {
         if (blockMenu == null)
@@ -282,6 +349,9 @@ public class LegoWristButtons : MonoBehaviour
         blockMenu.SetMenuOpen(!blockMenu.IsOpenOrClosing);
     }
 
+    /// <summary>
+    /// Opens or closes the music player panel.
+    /// </summary>
     private void OnMusicPlayerPressed()
     {
         if (musicPlayerPanel == null)
@@ -290,6 +360,9 @@ public class LegoWristButtons : MonoBehaviour
         musicPlayerPanel.SetActive(!musicPlayerPanel.activeSelf);
     }
 
+    /// <summary>
+    /// Opens or closes the main menu panel.
+    /// </summary>
     private void OnMainMenuPressed()
     {
         if (mainMenuPanel == null)

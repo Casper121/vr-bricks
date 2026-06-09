@@ -98,32 +98,41 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
 
         internal void Initialize(XRDeviceSimulator simulator)
         {
-            m_PrimaryButtonText.text = simulator.primaryButtonAction.action.controls[0].displayName;
-            m_SecondaryButtonText.text = simulator.secondaryButtonAction.action.controls[0].displayName;
-            m_GripButtonText.text = simulator.gripAction.action.controls[0].displayName;
-            m_TriggerButtonText.text = simulator.triggerAction.action.controls[0].displayName;
-            m_MenuButtonText.text = simulator.menuAction.action.controls[0].displayName;
+            SetTextSafe(m_PrimaryButtonText, GetControlDisplayName(simulator.primaryButtonAction, 0, "Primary"));
+            SetTextSafe(m_SecondaryButtonText, GetControlDisplayName(simulator.secondaryButtonAction, 0, "Secondary"));
+            SetTextSafe(m_GripButtonText, GetControlDisplayName(simulator.gripAction, 0, "Grip"));
+            SetTextSafe(m_TriggerButtonText, GetControlDisplayName(simulator.triggerAction, 0, "Trigger"));
+            SetTextSafe(m_MenuButtonText, GetControlDisplayName(simulator.menuAction, 0, "Menu"));
 
             var disabledImgColor = m_MainUIManager.disabledColor;
-            m_ThumbstickButtonImage.color = disabledImgColor;
-            m_ControllerImage.color = m_MainUIManager.disabledDeviceColor;
-            m_ControllerOverlayImage.color = disabledImgColor;
+
+            if (m_ThumbstickButtonImage != null)
+                m_ThumbstickButtonImage.color = disabledImgColor;
+
+            if (m_ControllerImage != null)
+                m_ControllerImage.color = m_MainUIManager.disabledDeviceColor;
+
+            if (m_ControllerOverlayImage != null)
+                m_ControllerOverlayImage.color = disabledImgColor;
         }
 
         internal void SetAsActiveController(bool active, XRDeviceSimulator simulator, bool isRestingHand = false)
         {
-            var controls = isRestingHand ?
-                simulator.restingHandAxis2DAction.action.controls :
-                simulator.axis2DAction.action.controls;
+            InputAction action = null;
 
-            m_ThumbstickButtonText.text = $"{controls[0].displayName}, {controls[1].displayName}, {controls[2].displayName}, {controls[3].displayName}";
+            if (isRestingHand && simulator.restingHandAxis2DAction != null)
+                action = simulator.restingHandAxis2DAction.action;
+            else if (simulator.axis2DAction != null)
+                action = simulator.axis2DAction.action;
 
-            UpdateButtonVisuals(active, m_PrimaryButtonIcon, m_PrimaryButtonText, simulator.primaryButtonAction.action.controls[0]);
-            UpdateButtonVisuals(active, m_SecondaryButtonIcon, m_SecondaryButtonText, simulator.secondaryButtonAction.action.controls[0]);
-            UpdateButtonVisuals(active, m_TriggerButtonIcon, m_TriggerButtonText, simulator.triggerAction.action.controls[0]);
-            UpdateButtonVisuals(active, m_GripButtonIcon, m_GripButtonText, simulator.gripAction.action.controls[0]);
-            UpdateButtonVisuals(active, m_MenuButtonIcon, m_MenuButtonText, simulator.menuAction.action.controls[0]);
-            UpdateButtonVisuals(active || isRestingHand, m_ThumbstickButtonIcon, m_ThumbstickButtonText, simulator.axis2DAction.action.controls[0]);
+            SetTextSafe(m_ThumbstickButtonText, BuildControlsText(action, "Move"));
+
+            UpdateButtonVisuals(active, m_PrimaryButtonIcon, m_PrimaryButtonText, GetControl(simulator.primaryButtonAction, 0));
+            UpdateButtonVisuals(active, m_SecondaryButtonIcon, m_SecondaryButtonText, GetControl(simulator.secondaryButtonAction, 0));
+            UpdateButtonVisuals(active, m_TriggerButtonIcon, m_TriggerButtonText, GetControl(simulator.triggerAction, 0));
+            UpdateButtonVisuals(active, m_GripButtonIcon, m_GripButtonText, GetControl(simulator.gripAction, 0));
+            UpdateButtonVisuals(active, m_MenuButtonIcon, m_MenuButtonText, GetControl(simulator.menuAction, 0));
+            UpdateButtonVisuals(active || isRestingHand, m_ThumbstickButtonIcon, m_ThumbstickButtonText, GetControl(simulator.axis2DAction, 0));
 
             if (active)
             {
@@ -134,8 +143,11 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
                 UpdateButtonColor(m_MenuButtonImage, m_MenuActivated);
                 UpdateButtonColor(m_ThumbstickButtonImage, m_XAxisTranslateActivated || m_YAxisTranslateActivated);
 
-                m_ControllerImage.color = m_MainUIManager.deviceColor;
-                m_ControllerOverlayImage.color = m_MainUIManager.enabledColor;
+                if (m_ControllerImage != null)
+                    m_ControllerImage.color = m_MainUIManager.deviceColor;
+
+                if (m_ControllerOverlayImage != null)
+                    m_ControllerOverlayImage.color = m_MainUIManager.enabledColor;
             }
             else
             {
@@ -147,18 +159,22 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
 
                 if (!isRestingHand)
                     UpdateDisableControllerButton(m_XAxisTranslateActivated || m_YAxisTranslateActivated, m_ThumbstickButtonImage, m_ThumbstickButtonIcon, m_ThumbstickButtonText);
-                else
+                else if (m_ThumbstickButtonImage != null)
                     m_ThumbstickButtonImage.color = m_MainUIManager.buttonColor;
 
-                m_ControllerImage.color = m_MainUIManager.disabledDeviceColor;
-                m_ControllerOverlayImage.color = m_MainUIManager.disabledColor;
+                if (m_ControllerImage != null)
+                    m_ControllerImage.color = m_MainUIManager.disabledDeviceColor;
+
+                if (m_ControllerOverlayImage != null)
+                    m_ControllerOverlayImage.color = m_MainUIManager.disabledColor;
             }
         }
 
-        // This function keeps the button selected color active if the key if hold when the controller is disabled.
-        // Other buttons are disabled to avoid adding extra noise.
         void UpdateDisableControllerButton(bool active, Image button, Image buttonIcon, Text buttonText)
         {
+            if (button == null || buttonIcon == null || buttonText == null)
+                return;
+
             if (active)
             {
                 var tmpColor = m_MainUIManager.selectedColor;
@@ -177,6 +193,9 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
 
         void UpdateButtonVisuals(bool active, Image buttonIcon, Text buttonText, InputControl control)
         {
+            if (buttonIcon == null || buttonText == null)
+                return;
+
             buttonText.gameObject.SetActive(active);
             buttonIcon.gameObject.SetActive(active);
 
@@ -185,7 +204,15 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
             buttonIcon.color = color;
 
             buttonIcon.transform.localScale = Vector3.one;
+
+            if (control == null)
+            {
+                buttonIcon.sprite = m_MainUIManager.keyboardSprite;
+                return;
+            }
+
             buttonIcon.sprite = m_MainUIManager.GetInputIcon(control);
+
             switch (control.name)
             {
                 case "leftButton":
@@ -193,10 +220,12 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
                     buttonIcon.color = Color.white;
                     buttonIcon.transform.localScale = new Vector3(-1f, 1f, 1f);
                     break;
+
                 case "rightButton":
                     buttonText.text = "R Mouse";
                     buttonIcon.color = Color.white;
                     break;
+
                 default:
                     buttonIcon.sprite = m_MainUIManager.keyboardSprite;
                     break;
@@ -205,6 +234,9 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
 
         void UpdateButtonColor(Image image, bool activated)
         {
+            if (image == null)
+                return;
+
             image.color = activated ? m_MainUIManager.selectedColor : m_MainUIManager.buttonColor;
         }
 
@@ -241,13 +273,61 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.DeviceSimulator
         internal void OnXAxisTranslatePerformed(bool activated)
         {
             m_XAxisTranslateActivated = activated;
-            UpdateButtonColor(m_ThumbstickButtonImage, activated);
+            UpdateButtonColor(m_ThumbstickButtonImage, activated || m_YAxisTranslateActivated);
         }
 
         internal void OnZAxisTranslatePerformed(bool activated)
         {
             m_YAxisTranslateActivated = activated;
-            UpdateButtonColor(m_ThumbstickButtonImage, activated);
+            UpdateButtonColor(m_ThumbstickButtonImage, activated || m_XAxisTranslateActivated);
+        }
+
+        static void SetTextSafe(Text text, string value)
+        {
+            if (text != null)
+                text.text = value;
+        }
+
+        static InputControl GetControl(InputActionReference reference, int index)
+        {
+            if (reference == null || reference.action == null)
+                return null;
+
+            var controls = reference.action.controls;
+
+            if (index < 0 || index >= controls.Count)
+                return null;
+
+            return controls[index];
+        }
+
+        static string GetControlDisplayName(InputActionReference reference, int index, string fallback)
+        {
+            InputControl control = GetControl(reference, index);
+
+            if (control == null)
+                return fallback;
+
+            return string.IsNullOrEmpty(control.displayName) ? fallback : control.displayName;
+        }
+
+        static string BuildControlsText(InputAction action, string fallback)
+        {
+            if (action == null || action.controls.Count == 0)
+                return fallback;
+
+            string text = "";
+
+            for (int i = 0; i < action.controls.Count; i++)
+            {
+                if (i > 0)
+                    text += ", ";
+
+                string displayName = action.controls[i].displayName;
+                text += string.IsNullOrEmpty(displayName) ? action.controls[i].name : displayName;
+            }
+
+            return string.IsNullOrEmpty(text) ? fallback : text;
         }
     }
 }

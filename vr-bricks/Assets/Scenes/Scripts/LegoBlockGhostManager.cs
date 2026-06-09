@@ -276,7 +276,12 @@ public class LegoBlockGhostManager : MonoBehaviour
     private void BeginHold()
     {
         CurrentYawOffset = 0f;
-        heldBaseRotation = transform.rotation;
+
+        // Beim Aufheben wird der Block wieder gerade gemacht.
+        // Es bleibt nur die aktuelle Y-Richtung erhalten.
+        // X/Z-Kippen vom Umfallen wird entfernt.
+        heldBaseRotation = GetUprightRotationFromCurrentYaw();
+        transform.rotation = heldBaseRotation;
 
         if (rb != null)
         {
@@ -285,6 +290,7 @@ public class LegoBlockGhostManager : MonoBehaviour
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
+            rb.MoveRotation(heldBaseRotation);
         }
 
         block.SetSnappedToSocket(false);
@@ -741,6 +747,23 @@ public class LegoBlockGhostManager : MonoBehaviour
     // -------------------------------------------------------------------------
     // Rotation and Visual Reset
     // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns an upright rotation when the block is picked up.
+    /// Keeps the current horizontal facing direction but removes X/Z tipping.
+    /// </summary>
+    private Quaternion GetUprightRotationFromCurrentYaw()
+    {
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.ProjectOnPlane(transform.up, Vector3.up);
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.forward;
+
+        return Quaternion.LookRotation(forward.normalized, Vector3.up);
+    }
 
     /// <summary>
     /// Applies the current yaw offset to the real Rigidbody root while held.

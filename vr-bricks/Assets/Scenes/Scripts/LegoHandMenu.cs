@@ -28,6 +28,23 @@ public class LegoHandMenu : MonoBehaviour
     [Header("Spawn Settings")]
     public float spawnDistance = 0.5f;
 
+    [Tooltip("How high above the detected surface the spawned block is placed.")]
+    public float spawnSurfaceOffset = 0.08f;
+
+    [Tooltip("How high above the spawn target the downward raycast starts.")]
+    public float spawnRaycastStartHeight = 2f;
+
+    [Tooltip("How far downward the script searches for a surface.")]
+    public float spawnRaycastDistance = 5f;
+
+    [Tooltip("Layers that count as valid spawn surfaces. Leave on Everything if unsure.")]
+    public LayerMask spawnSurfaceMask = ~0;
+
+    [Tooltip("Small sideways spacing between repeated spawned blocks so they do not spawn inside each other.")]
+    public float spawnStackSpacing = 0.08f;
+
+    private int spawnCounter;
+
     [Header("UI References")]
     public Canvas menuCanvas;
 
@@ -941,7 +958,6 @@ public class LegoHandMenu : MonoBehaviour
         if (entry == null || entry.blockPrefab == null)
             return;
 
-        Vector3 spawnPos = GetSpawnPosition();
         Quaternion spawnRot = Quaternion.identity;
 
         if (mainCamera != null)
@@ -950,8 +966,10 @@ public class LegoHandMenu : MonoBehaviour
             flat.y = 0f;
 
             if (flat.sqrMagnitude > 0.001f)
-                spawnRot = Quaternion.LookRotation(flat);
+                spawnRot = Quaternion.LookRotation(flat.normalized);
         }
+
+        Vector3 spawnPos = GetSpawnPosition(entry.blockPrefab, spawnRot);
 
         GameObject block = Instantiate(entry.blockPrefab, spawnPos, spawnRot);
 
@@ -968,25 +986,105 @@ public class LegoHandMenu : MonoBehaviour
             r.material = mat;
         }
 
+        Rigidbody rb = block.GetComponent<Rigidbody>();
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
+        }
+
         LegoBlock legoBlock = block.GetComponent<LegoBlock>();
 
         if (legoBlock != null)
             legoBlock.SetSnappedToSocket(false);
     }
 
-    private Vector3 GetSpawnPosition()
+    private Vector3 GetSpawnPosition(GameObject prefab, Quaternion spawnRotation)
+    {
+        Vector3 targetPos = GetSpawnTargetPoint();
+
+        Vector3 sideOffset = Vector3.zero;
+
+        if (mainCamera != null)
+        {
+            Vector3 right = mainCamera.transform.right;
+            right.y = 0f;
+
+            if (right.sqrMagnitude > 0.001f)
+            {
+                right.Normalize();
+
+                int offsetIndex = spawnCounter % 5 - 2;
+                sideOffset = right * offsetIndex * spawnStackSpacing;
+            }
+        }
+
+        spawnCounter++;
+
+        Vector3 rayStart = targetPos + sideOffset + Vector3.up * spawnRaycastStartHeight;
+
+        if (Physics.Raycast(
+                rayStart,
+                Vector3.down,
+                out RaycastHit hit,
+                spawnRaycastDistance,
+                spawnSurfaceMask,
+                QueryTriggerInteraction.Ignore))
+        {
+            float bottomOffset = GetPrefabBottomOffset(prefab, spawnRotation);
+            return hit.point + Vector3.up * (bottomOffset + spawnSurfaceOffset);
+        }
+
+        return targetPos + sideOffset + Vector3.up * 0.5f;
+    }
+
+    private Vector3 GetSpawnTargetPoint()
     {
         if (mainCamera != null)
         {
-            return mainCamera.transform.position
-                 + mainCamera.transform.forward * spawnDistance
-                 + Vector3.down * 0.1f;
+            Vector3 forward = mainCamera.transform.forward;
+            forward.y = 0f;
+
+            if (forward.sqrMagnitude < 0.001f)
+                forward = mainCamera.transform.forward;
+
+            return mainCamera.transform.position + forward.normalized * spawnDistance;
         }
 
         if (leftHandTransform != null)
-            return leftHandTransform.position + Vector3.forward * spawnDistance;
+            return leftHandTransform.position + leftHandTransform.forward * spawnDistance;
 
-        return Vector3.zero;
+        return transform.position + transform.forward * spawnDistance;
+    }
+
+    private float GetPrefabBottomOffset(GameObject prefab, Quaternion spawnRotation)
+    {
+        if (prefab == null)
+            return 0.1f;
+
+        GameObject temp = Instantiate(prefab, Vector3.zero, spawnRotation);
+        temp.SetActive(false);
+
+        Renderer[] tempRenderers = temp.GetComponentsInChildren<Renderer>();
+
+        if (tempRenderers.Length == 0)
+        {
+            Destroy(temp);
+            return 0.1f;
+        }
+
+        Bounds bounds = tempRenderers[0].bounds;
+
+        for (int i = 1; i < tempRenderers.Length; i++)
+            bounds.Encapsulate(tempRenderers[i].bounds);
+
+        float bottomOffset = temp.transform.position.y - bounds.min.y;
+
+        Destroy(temp);
+
+        return bottomOffset;
     }
 
     private class PickerDragTarget : MonoBehaviour,
