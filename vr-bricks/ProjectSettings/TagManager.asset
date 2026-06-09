@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - BottomAttach
+  - Anchor
   layers:
   - Default
   - TransparentFX
@@ -12,8 +13,8 @@ TagManager:
   - LegoSocket
   - Water
   - UI
-  - 
-  - 
+  - SnappedBlocks
+  - IgnoreSocket
   - 
   - 
   - 

@@ -1,0 +1,1061 @@
+﻿using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using System.Collections.Generic;
+
+/// <summary>
+/// Handles LEGO block snapping, ghost preview, placement validation,
+/// held-block rotation, and socket occupation.
+/// 
+/// Important XR setup for the block:
+/// - XR Grab Interactable Movement Type: Velocity Tracking
+/// - Track Position: enabled
+/// - Track Rotation: disabled
+/// 
+/// This allows Unity physics to move the block while this script controls
+/// 90-degree yaw rotation manually.
+/// </summary>
+[RequireComponent(typeof(LegoBlock))]
+[RequireComponent(typeof(Rigidbody))]
+public class LegoBlockGhostManager : MonoBehaviour
+{
+    // -------------------------------------------------------------------------
+    // Inspector: Ghost Settings
+    // -------------------------------------------------------------------------
+
+    [Header("Ghost Settings")]
+    [Tooltip("Maximum horizontal distance from a socket before the block can snap.")]
+    [SerializeField] private float snapDistanceThreshold = 0.6f;
+
+    [Tooltip("Maximum allowed X/Z axis offset from the target socket.")]
+    [SerializeField] private float maxAxisOffset = 0.8f;
+
+    [Tooltip("Multiplier used to keep an already locked socket reachable slightly longer.")]
+    [SerializeField] private float releaseDistanceMultiplier = 1.1f;
+
+    [Tooltip("Ghost color for valid placement.")]
+    [SerializeField] private Color ghostColorValid = new Color(0.3f, 0.6f, 1f, 0.4f);
+
+    [Tooltip("Ghost color for invalid placement.")]
+    [SerializeField] private Color ghostColorInvalid = new Color(1f, 0.2f, 0.2f, 0.4f);
+
+    // -------------------------------------------------------------------------
+    // Inspector: Visual Root
+    // -------------------------------------------------------------------------
+
+    [Header("Visual Root")]
+    [Tooltip("Optional visual root. If empty, the script searches for a child named 'VisualRoot'.")]
+    [SerializeField] private Transform visualRoot;
+
+    // -------------------------------------------------------------------------
+    // Public State
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Current yaw offset in degrees. Usually 0, 90, 180, or 270.
+    /// </summary>
+    public float CurrentYawOffset { get; private set; }
+
+    /// <summary>
+    /// Current socket that the held block is locked onto for preview.
+    /// </summary>
+    public LegoSocket TargetSocket { get; private set; }
+
+    // -------------------------------------------------------------------------
+    // Runtime References
+    // -------------------------------------------------------------------------
+
+    private XRGrabInteractable grabInteractable;
+    private Rigidbody rb;
+    private LegoBlock block;
+
+    // -------------------------------------------------------------------------
+    // Runtime State: Ghost and Sockets
+    // -------------------------------------------------------------------------
+
+    private GameObject ghostRoot;
+    private LegoSocket currentSocket;
+    private readonly List<LegoSocket> currentOccupiedSockets = new List<LegoSocket>();
+    private readonly List<LegoSocketInteractor> allSocketInteractors = new List<LegoSocketInteractor>();
+
+    // -------------------------------------------------------------------------
+    // Runtime State: Visuals and Rotation
+    // -------------------------------------------------------------------------
+
+    private Vector3 visualRootOriginalLocalPosition;
+    private Quaternion visualRootOriginalLocalRotation;
+    private Quaternion heldBaseRotation;
+
+    // -------------------------------------------------------------------------
+    // Runtime State: Placement
+    // -------------------------------------------------------------------------
+
+    private bool wasHeld;
+    private bool currentPlacementValid;
+    private bool rotationLockGraceFrame;
+    private float lastBuiltYaw = -999f;
+
+    private LegoBlock temporarilyStabilizedBlock;
+
+    // -------------------------------------------------------------------------
+    // Runtime State: Ghost Mesh Cache
+    // -------------------------------------------------------------------------
+
+    private readonly List<MeshSnapshot> meshSnapshots = new List<MeshSnapshot>();
+
+    private struct MeshSnapshot
+    {
+        public Mesh mesh;
+        public Vector3 localPosition;
+        public Quaternion localRotation;
+        public Vector3 localScale;
+    }
+
+    private struct SnapCandidate
+    {
+        public LegoSocket socket;
+        public Vector3 worldPosition;
+        public Quaternion worldRotation;
+        public float distance;
+        public int startX;
+        public int startZ;
+        public int effectiveWidth;
+        public int effectiveLength;
+        public LegoBlockSocketSpawner parentGrid;
+    }
+
+    // -------------------------------------------------------------------------
+    // Unity Lifecycle
+    // -------------------------------------------------------------------------
+
+    private void Awake()
+    {
+        grabInteractable = GetComponent<XRGrabInteractable>();
+        rb = GetComponent<Rigidbody>();
+        block = GetComponent<LegoBlock>();
+
+        FindVisualRoot();
+        StoreVisualRootDefaults();
+        RefreshSocketInteractors();
+        FindCurrentSocket();
+    }
+
+    private void Start()
+    {
+        CacheMeshSnapshots();
+    }
+
+    private void Update()
+    {
+        bool isHeld = grabInteractable != null && grabInteractable.isSelected;
+
+        if (!isHeld && wasHeld)
+        {
+            OnRelease();
+            wasHeld = false;
+            return;
+        }
+
+        if (!isHeld)
+        {
+            ClearTemporaryStabilization();
+            ClearTargetAndGhost();
+            return;
+        }
+
+        HandleHeldState();
+    }
+
+    private void LateUpdate()
+    {
+        if (!wasHeld)
+            return;
+
+        ApplyHeldRootRotation();
+    }
+
+    // -------------------------------------------------------------------------
+    // Public API: Rotation
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Rotates the held block clockwise by 90 degrees.
+    /// </summary>
+    public void RotateClockwise()
+    {
+        CurrentYawOffset = (CurrentYawOffset + 90f) % 360f;
+        rotationLockGraceFrame = true;
+
+        ApplyHeldRootRotation();
+        RebuildGhostIfLocked();
+    }
+
+    /// <summary>
+    /// Rotates the held block counter-clockwise by 90 degrees.
+    /// </summary>
+    public void RotateCounterClockwise()
+    {
+        CurrentYawOffset = (CurrentYawOffset - 90f + 360f) % 360f;
+        rotationLockGraceFrame = true;
+
+        ApplyHeldRootRotation();
+        RebuildGhostIfLocked();
+    }
+
+    // -------------------------------------------------------------------------
+    // Public API: State
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns true if this block is selected by a hand/controller and not by an XR socket.
+    /// </summary>
+    public bool IsHeldByHand()
+    {
+        if (grabInteractable == null || !grabInteractable.isSelected)
+            return false;
+
+        foreach (var interactor in grabInteractable.interactorsSelecting)
+        {
+            if (!(interactor is XRSocketInteractor))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Removes the current ghost preview if one exists.
+    /// </summary>
+    public void HideGhost()
+    {
+        if (ghostRoot == null)
+            return;
+
+        Destroy(ghostRoot);
+        ghostRoot = null;
+    }
+
+    /// <summary>
+    /// Called after this block has been successfully snapped.
+    /// </summary>
+    public void OnSnapped()
+    {
+        CurrentYawOffset = 0f;
+        ResetVisualRoot();
+
+        ClearTargetAndGhost();
+        lastBuiltYaw = -999f;
+        rotationLockGraceFrame = false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Main Held-State Logic
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Handles all logic while the block is currently being held.
+    /// </summary>
+    private void HandleHeldState()
+    {
+        if (!wasHeld)
+            BeginHold();
+
+        ApplyHeldRootRotation();
+
+        if (TargetSocket != null)
+            HandleLockedTarget();
+        else
+            SearchForSnapTarget();
+
+        wasHeld = true;
+    }
+
+    /// <summary>
+    /// Initializes physics and socket state when the block starts being held.
+    /// </summary>
+    private void BeginHold()
+    {
+        CurrentYawOffset = 0f;
+
+        // Beim Aufheben wird der Block wieder gerade gemacht.
+        // Es bleibt nur die aktuelle Y-Richtung erhalten.
+        // X/Z-Kippen vom Umfallen wird entfernt.
+        heldBaseRotation = GetUprightRotationFromCurrentYaw();
+        transform.rotation = heldBaseRotation;
+
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.detectCollisions = true;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.MoveRotation(heldBaseRotation);
+        }
+
+        block.SetSnappedToSocket(false);
+
+        ReleaseCurrentOccupiedSocketsAndNotifyParent();
+        DisableAllSocketInteractors(true);
+    }
+
+    /// <summary>
+    /// Keeps a previously found socket locked while it is still reachable.
+    /// </summary>
+    private void HandleLockedTarget()
+    {
+        bool stillReachable = rotationLockGraceFrame || IsSocketReachable(TargetSocket);
+        rotationLockGraceFrame = false;
+
+        if (stillReachable)
+        {
+            bool yawChanged = !Mathf.Approximately(lastBuiltYaw, CurrentYawOffset);
+
+            if (yawChanged)
+                RebuildGhostForLockedSocket(TargetSocket);
+            else if (currentPlacementValid)
+                StabilizeBlockUnderSocket(TargetSocket);
+
+            return;
+        }
+
+        ClearTemporaryStabilization();
+        ClearTargetAndGhost();
+        lastBuiltYaw = -999f;
+    }
+
+    /// <summary>
+    /// Searches nearby sockets and locks onto the best valid candidate.
+    /// </summary>
+    private void SearchForSnapTarget()
+    {
+        SnapCandidate bestCandidate = FindInitialSnapCandidate();
+
+        if (bestCandidate.socket == null)
+        {
+            ClearTemporaryStabilization();
+            ClearTargetAndGhost();
+            lastBuiltYaw = -999f;
+            return;
+        }
+
+        TargetSocket = bestCandidate.socket;
+        RebuildGhostForLockedSocket(TargetSocket);
+    }
+
+    // -------------------------------------------------------------------------
+    // Release and Placement
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Handles releasing the block. If the current placement is valid, the block snaps.
+    /// Otherwise it is released back to normal physics.
+    /// </summary>
+    private void OnRelease()
+    {
+        HideGhost();
+
+        if (TargetSocket != null && currentPlacementValid)
+            TrySnapToTarget();
+        else
+            FallbackRelease();
+
+        DisableAllSocketInteractors(false);
+        ClearTemporaryStabilization();
+
+        TargetSocket = null;
+        currentPlacementValid = false;
+        lastBuiltYaw = -999f;
+        rotationLockGraceFrame = false;
+    }
+
+    /// <summary>
+    /// Attempts to snap the block to the current target socket.
+    /// </summary>
+    private void TrySnapToTarget()
+    {
+        SnapCandidate finalCandidate = ComputeCandidateForLockedSocket(TargetSocket);
+
+        bool canPlace =
+            finalCandidate.socket != null &&
+            finalCandidate.parentGrid != null &&
+            finalCandidate.parentGrid.IsAreaClear(
+                finalCandidate.startX,
+                finalCandidate.startZ,
+                finalCandidate.effectiveWidth,
+                finalCandidate.effectiveLength
+            );
+
+        if (!canPlace)
+        {
+            FallbackRelease();
+            return;
+        }
+
+        ResetVisualRoot();
+
+        transform.position = finalCandidate.worldPosition;
+        transform.rotation = finalCandidate.worldRotation;
+
+        CurrentYawOffset = 0f;
+        heldBaseRotation = transform.rotation;
+
+        currentSocket = finalCandidate.socket;
+
+        currentOccupiedSockets.Clear();
+        currentOccupiedSockets.AddRange(
+            finalCandidate.parentGrid.GetSocketsInArea(
+                finalCandidate.startX,
+                finalCandidate.startZ,
+                finalCandidate.effectiveWidth,
+                finalCandidate.effectiveLength
+            )
+        );
+
+        MarkSocketsOccupied(currentOccupiedSockets, true);
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+        }
+
+        block.SetSnappedToSocket(true);
+
+        LegoBlock parentBlock = finalCandidate.socket.GetComponentInParent<LegoBlock>();
+
+        if (parentBlock != null)
+            parentBlock.AddAttachedBlockAbove();
+
+        OnSnapped();
+    }
+
+    /// <summary>
+    /// Releases the block without snapping it to a socket.
+    /// </summary>
+    private void FallbackRelease()
+    {
+        HideGhost();
+
+        block.SetSnappedToSocket(false);
+
+        ResetVisualRoot();
+        CurrentYawOffset = 0f;
+
+        if (rb != null)
+        {
+            if (rb.isKinematic)
+                rb.isKinematic = false;
+
+            rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Ghost Building
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Rebuilds the ghost if a socket is currently locked.
+    /// </summary>
+    private void RebuildGhostIfLocked()
+    {
+        if (TargetSocket != null)
+            RebuildGhostForLockedSocket(TargetSocket);
+        else
+            lastBuiltYaw = -999f;
+    }
+
+    /// <summary>
+    /// Rebuilds the ghost preview for the current target socket and yaw rotation.
+    /// </summary>
+    private void RebuildGhostForLockedSocket(LegoSocket socket)
+    {
+        if (socket == null || socket.parentGrid == null)
+            return;
+
+        SnapCandidate candidate = ComputeCandidateForLockedSocket(socket);
+
+        bool coversInnerSocket = socket.parentGrid.DoesRotatedBlockCoverInnerSocket(
+            candidate.startX,
+            candidate.startZ,
+            block,
+            CurrentYawOffset
+        );
+
+        bool areaClear = candidate.parentGrid.IsAreaClear(
+            candidate.startX,
+            candidate.startZ,
+            candidate.effectiveWidth,
+            candidate.effectiveLength
+        );
+
+        bool isValid = coversInnerSocket && areaClear;
+
+        if (isValid)
+            StabilizeBlockUnderSocket(socket);
+        else
+            ClearTemporaryStabilization();
+
+        BuildGhostAtPosition(candidate.worldPosition, candidate.worldRotation, isValid);
+
+        currentPlacementValid = isValid;
+        lastBuiltYaw = CurrentYawOffset;
+    }
+
+    /// <summary>
+    /// Creates a transparent ghost mesh at the given position and rotation.
+    /// </summary>
+    private void BuildGhostAtPosition(Vector3 position, Quaternion rotation, bool isValid)
+    {
+        HideGhost();
+
+        if (meshSnapshots.Count == 0)
+            return;
+
+        Material ghostMaterial = CreateGhostMaterial(isValid);
+
+        ghostRoot = new GameObject("SnapGhost");
+        ghostRoot.transform.SetPositionAndRotation(position, rotation);
+
+        foreach (MeshSnapshot snapshot in meshSnapshots)
+        {
+            GameObject part = new GameObject("GhostPart");
+
+            part.transform.SetParent(ghostRoot.transform, false);
+            part.transform.localPosition = snapshot.localPosition;
+            part.transform.localRotation = snapshot.localRotation;
+            part.transform.localScale = snapshot.localScale;
+
+            MeshFilter meshFilter = part.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = snapshot.mesh;
+
+            MeshRenderer meshRenderer = part.AddComponent<MeshRenderer>();
+            meshRenderer.material = ghostMaterial;
+            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            meshRenderer.receiveShadows = false;
+        }
+    }
+
+    /// <summary>
+    /// Creates a transparent ghost material for valid or invalid placement.
+    /// </summary>
+    private Material CreateGhostMaterial(bool isValid)
+    {
+        Color color = isValid ? ghostColorValid : ghostColorInvalid;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+
+        if (shader == null)
+            shader = Shader.Find("Standard");
+
+        Material material = new Material(shader);
+        material.color = color;
+        material.renderQueue = 3000;
+
+        if (shader.name.Contains("Standard"))
+        {
+            material.SetFloat("_Mode", 3);
+            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.EnableKeyword("_ALPHABLEND_ON");
+        }
+        else
+        {
+            material.SetFloat("_Surface", 1);
+            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+
+        return material;
+    }
+
+    // -------------------------------------------------------------------------
+    // Snap Candidate Calculation
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Calculates the final block position and rotation for a locked socket.
+    /// </summary>
+    private SnapCandidate ComputeCandidateForLockedSocket(LegoSocket socket)
+    {
+        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+
+        int step = Mathf.RoundToInt(CurrentYawOffset / 90f) % 4;
+
+        if (step < 0)
+            step += 4;
+
+        int startX;
+        int startZ;
+
+        switch (step)
+        {
+            case 1:
+                startX = socket.gridX;
+                startZ = socket.gridZ - (effectiveLength - 1);
+                break;
+
+            case 2:
+                startX = socket.gridX - (effectiveWidth - 1);
+                startZ = socket.gridZ - (effectiveLength - 1);
+                break;
+
+            case 3:
+                startX = socket.gridX - (effectiveWidth - 1);
+                startZ = socket.gridZ;
+                break;
+
+            default:
+                startX = socket.gridX;
+                startZ = socket.gridZ;
+                break;
+        }
+
+        Vector3 worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
+            startX,
+            startZ,
+            block,
+            CurrentYawOffset
+        );
+
+        Quaternion worldRotation =
+            socket.GetBaseRotation() *
+            Quaternion.Euler(0f, CurrentYawOffset, 0f);
+
+        return new SnapCandidate
+        {
+            socket = socket,
+            worldPosition = worldPosition,
+            worldRotation = worldRotation,
+            startX = startX,
+            startZ = startZ,
+            effectiveWidth = effectiveWidth,
+            effectiveLength = effectiveLength,
+            parentGrid = socket.parentGrid
+        };
+    }
+
+    /// <summary>
+    /// Finds the best nearby socket candidate for the currently held block.
+    /// </summary>
+    private SnapCandidate FindInitialSnapCandidate()
+    {
+        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+
+        LegoSocket[] allSockets = FindObjectsOfType<LegoSocket>();
+
+        SnapCandidate best = new SnapCandidate
+        {
+            socket = null,
+            distance = float.MaxValue
+        };
+
+        foreach (LegoSocket socket in allSockets)
+        {
+            if (!IsSocketUsableForInitialSearch(socket))
+                continue;
+
+            for (int dx = 0; dx < effectiveWidth; dx++)
+            {
+                for (int dz = 0; dz < effectiveLength; dz++)
+                {
+                    int startX = socket.gridX - dx;
+                    int startZ = socket.gridZ - dz;
+
+                    if (!socket.parentGrid.DoesRotatedBlockCoverInnerSocket(startX, startZ, block, CurrentYawOffset))
+                        continue;
+
+                    Vector3 socketDiff = transform.position - socket.transform.position;
+                    float horizontalDistance = new Vector2(socketDiff.x, socketDiff.z).magnitude;
+
+                    if (Mathf.Abs(socketDiff.x) > maxAxisOffset || Mathf.Abs(socketDiff.z) > maxAxisOffset)
+                        continue;
+
+                    if (horizontalDistance > snapDistanceThreshold)
+                        continue;
+
+                    if (horizontalDistance >= best.distance)
+                        continue;
+
+                    best.socket = socket;
+                    best.distance = horizontalDistance;
+                    best.startX = startX;
+                    best.startZ = startZ;
+                    best.effectiveWidth = effectiveWidth;
+                    best.effectiveLength = effectiveLength;
+                    best.parentGrid = socket.parentGrid;
+                    best.worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
+                        startX,
+                        startZ,
+                        block,
+                        CurrentYawOffset
+                    );
+                    best.worldRotation =
+                        socket.GetBaseRotation() *
+                        Quaternion.Euler(0f, CurrentYawOffset, 0f);
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Returns true if the socket can be considered during initial snap search.
+    /// </summary>
+    private bool IsSocketUsableForInitialSearch(LegoSocket socket)
+    {
+        if (socket == null) return false;
+        if (!socket.isInnerSocket) return false;
+        if (socket.isOccupied) return false;
+        if (socket.transform.IsChildOf(transform)) return false;
+        if (socket.parentGrid == null) return false;
+
+        // The block must approach the socket from above.
+        if (transform.position.y <= socket.transform.position.y + 0.05f)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns true if the currently locked socket is still close enough to keep.
+    /// </summary>
+    private bool IsSocketReachable(LegoSocket socket)
+    {
+        if (!IsSocketUsableForInitialSearch(socket))
+            return false;
+
+        Vector3 diff = transform.position - socket.transform.position;
+        float horizontalDistance = new Vector2(diff.x, diff.z).magnitude;
+
+        if (Mathf.Abs(diff.x) > maxAxisOffset || Mathf.Abs(diff.z) > maxAxisOffset)
+            return false;
+
+        float releaseDistance = snapDistanceThreshold * releaseDistanceMultiplier;
+        return horizontalDistance <= releaseDistance;
+    }
+
+    // -------------------------------------------------------------------------
+    // Rotation and Visual Reset
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns an upright rotation when the block is picked up.
+    /// Keeps the current horizontal facing direction but removes X/Z tipping.
+    /// </summary>
+    private Quaternion GetUprightRotationFromCurrentYaw()
+    {
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.ProjectOnPlane(transform.up, Vector3.up);
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.forward;
+
+        return Quaternion.LookRotation(forward.normalized, Vector3.up);
+    }
+
+    /// <summary>
+    /// Applies the current yaw offset to the real Rigidbody root while held.
+    /// </summary>
+    private void ApplyHeldRootRotation()
+    {
+        Quaternion targetRotation =
+            heldBaseRotation *
+            Quaternion.Euler(0f, CurrentYawOffset, 0f);
+
+        if (rb != null)
+        {
+            rb.angularVelocity = Vector3.zero;
+            rb.MoveRotation(targetRotation);
+        }
+
+        transform.rotation = targetRotation;
+
+        ResetVisualRoot();
+    }
+
+    /// <summary>
+    /// Keeps the visual root attached to this block and restores its original local transform.
+    /// </summary>
+    private void ResetVisualRoot()
+    {
+        if (visualRoot == null)
+            return;
+
+        if (visualRoot.parent != transform)
+            visualRoot.SetParent(transform, false);
+
+        visualRoot.localPosition = visualRootOriginalLocalPosition;
+        visualRoot.localRotation = visualRootOriginalLocalRotation;
+    }
+
+    // -------------------------------------------------------------------------
+    // Socket Occupation
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Releases all sockets currently occupied by this block and notifies the parent block.
+    /// </summary>
+    private void ReleaseCurrentOccupiedSocketsAndNotifyParent()
+    {
+        LegoBlock parentBlock = null;
+
+        if (currentSocket != null)
+        {
+            parentBlock = currentSocket.GetComponentInParent<LegoBlock>();
+        }
+        else if (currentOccupiedSockets.Count > 0 && currentOccupiedSockets[0] != null)
+        {
+            parentBlock = currentOccupiedSockets[0].GetComponentInParent<LegoBlock>();
+        }
+
+        ReleaseCurrentOccupiedSockets();
+
+        if (parentBlock != null)
+            parentBlock.RemoveAttachedBlockAbove();
+    }
+
+    /// <summary>
+    /// Frees all sockets currently occupied by this block.
+    /// </summary>
+    private void ReleaseCurrentOccupiedSockets()
+    {
+        if (currentOccupiedSockets.Count > 0)
+        {
+            MarkSocketsOccupied(currentOccupiedSockets, false);
+            currentOccupiedSockets.Clear();
+        }
+        else if (currentSocket != null)
+        {
+            currentSocket.isOccupied = false;
+
+            Collider socketCollider = currentSocket.GetComponent<Collider>();
+
+            if (socketCollider != null)
+                socketCollider.enabled = true;
+        }
+
+        currentSocket = null;
+    }
+
+    /// <summary>
+    /// Marks a list of sockets as occupied or free.
+    /// Occupied sockets have their colliders disabled.
+    /// </summary>
+    private void MarkSocketsOccupied(List<LegoSocket> sockets, bool occupied)
+    {
+        foreach (LegoSocket socket in sockets)
+        {
+            if (socket == null)
+                continue;
+
+            socket.isOccupied = occupied;
+
+            Collider socketCollider = socket.GetComponent<Collider>();
+
+            if (socketCollider != null)
+                socketCollider.enabled = !occupied;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Temporary Stabilization
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Temporarily stabilizes the block under the target socket while previewing placement.
+    /// </summary>
+    private void StabilizeBlockUnderSocket(LegoSocket socket)
+    {
+        LegoBlock blockUnderSocket =
+            socket != null ? socket.GetComponentInParent<LegoBlock>() : null;
+
+        if (blockUnderSocket == null)
+        {
+            ClearTemporaryStabilization();
+            return;
+        }
+
+        if (blockUnderSocket == block)
+            return;
+
+        if (temporarilyStabilizedBlock == blockUnderSocket)
+            return;
+
+        ClearTemporaryStabilization();
+
+        temporarilyStabilizedBlock = blockUnderSocket;
+        temporarilyStabilizedBlock.BeginTemporaryStabilization();
+    }
+
+    /// <summary>
+    /// Clears any temporary stabilization applied to another block.
+    /// </summary>
+    private void ClearTemporaryStabilization()
+    {
+        if (temporarilyStabilizedBlock == null)
+            return;
+
+        temporarilyStabilizedBlock.EndTemporaryStabilization();
+        temporarilyStabilizedBlock = null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Utility
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Clears the current target socket and removes the ghost.
+    /// </summary>
+    private void ClearTargetAndGhost()
+    {
+        TargetSocket = null;
+        currentPlacementValid = false;
+        HideGhost();
+    }
+
+    /// <summary>
+    /// Enables or disables all LEGO socket interactors while a block is manually held.
+    /// </summary>
+    private void DisableAllSocketInteractors(bool disable)
+    {
+        foreach (LegoSocketInteractor socketInteractor in allSocketInteractors)
+        {
+            if (socketInteractor != null)
+                socketInteractor.enabled = !disable;
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the cached list of all socket interactors in the scene.
+    /// </summary>
+    private void RefreshSocketInteractors()
+    {
+        allSocketInteractors.Clear();
+        allSocketInteractors.AddRange(FindObjectsOfType<LegoSocketInteractor>());
+    }
+
+    /// <summary>
+    /// Tries to find the socket this block is currently occupying.
+    /// </summary>
+    private void FindCurrentSocket()
+    {
+        Collider[] colliders = Physics.OverlapBox(transform.position, Vector3.one * 0.1f);
+
+        foreach (Collider col in colliders)
+        {
+            LegoSocket socket = col.GetComponent<LegoSocket>();
+
+            if (socket != null && socket.isOccupied)
+            {
+                currentSocket = socket;
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Finds the visual root if it was not assigned manually.
+    /// </summary>
+    private void FindVisualRoot()
+    {
+        if (visualRoot != null)
+            return;
+
+        Transform foundVisualRoot = transform.Find("VisualRoot");
+
+        if (foundVisualRoot != null)
+            visualRoot = foundVisualRoot;
+    }
+
+    /// <summary>
+    /// Stores the original local position and rotation of the visual root.
+    /// </summary>
+    private void StoreVisualRootDefaults()
+    {
+        if (visualRoot == null)
+        {
+            Debug.LogWarning($"{gameObject.name}: No VisualRoot assigned.");
+            return;
+        }
+
+        visualRootOriginalLocalPosition = visualRoot.localPosition;
+        visualRootOriginalLocalRotation = visualRoot.localRotation;
+    }
+
+    /// <summary>
+    /// Stores mesh data so the ghost can be rebuilt without cloning the whole object.
+    /// </summary>
+    private void CacheMeshSnapshots()
+    {
+        meshSnapshots.Clear();
+
+        Transform meshRoot = visualRoot != null ? visualRoot : transform;
+        MeshFilter[] meshFilters = meshRoot.GetComponentsInChildren<MeshFilter>();
+
+        foreach (MeshFilter meshFilter in meshFilters)
+        {
+            if (meshFilter.sharedMesh == null)
+                continue;
+
+            meshSnapshots.Add(new MeshSnapshot
+            {
+                mesh = meshFilter.sharedMesh,
+                localPosition = transform.InverseTransformPoint(meshFilter.transform.position),
+                localRotation = Quaternion.Inverse(transform.rotation) * meshFilter.transform.rotation,
+                localScale = meshFilter.transform.lossyScale
+            });
+        }
+    }
+
+    /// <summary>
+    /// Returns effective width and length after applying a 90-degree yaw rotation.
+    /// </summary>
+    private (int width, int length) GetRotatedDimensions(LegoBlock legoBlock, float yawOffset)
+    {
+        bool rotatedByQuarterTurn =
+            Mathf.Approximately(Mathf.Abs(yawOffset) % 180f, 90f);
+
+        if (rotatedByQuarterTurn)
+            return (legoBlock.length, legoBlock.width);
+
+        return (legoBlock.width, legoBlock.length);
+    }
+
+    // -------------------------------------------------------------------------
+    // Gizmos
+    // -------------------------------------------------------------------------
+
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying)
+            return;
+
+        if (TargetSocket != null)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawSphere(TargetSocket.transform.position, 0.08f);
+
+            if (ghostRoot != null)
+            {
+                Gizmos.color = Color.cyan;
+                Gizmos.DrawWireSphere(ghostRoot.transform.position, 0.12f);
+                Gizmos.DrawLine(TargetSocket.transform.position, ghostRoot.transform.position);
+            }
+        }
+
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, 0.06f);
+    }
+}
