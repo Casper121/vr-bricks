@@ -272,8 +272,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LegoBlockGhostManager
   snapDistanceThreshold: 0.6
-  maxAxisOffset: 0.25
+  maxAxisOffset: 0.5
   releaseDistanceMultiplier: 1.15
+  candidateSwitchMargin: 0.08
+  allowedBelowSocket: 0.18
   ghostColorValid: {r: 0.3, g: 0.6, b: 1, a: 0.4}
   ghostColorInvalid: {r: 1, g: 0.2, b: 0.2, a: 0.4}
   visualRoot: {fileID: 6837474331179771355}
