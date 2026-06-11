@@ -343,9 +343,9 @@ MonoBehaviour:
   blockLength: 3
   socketY: 0
   offsetX: 0
-  offsetZ: -0.6
-  studSpacingX: 0.5
-  studSpacingZ: 0.5
+  offsetZ: -0.4
+  studSpacingX: 0.4
+  studSpacingZ: 0.4
   hideGeneratedSocketRenderers: 0
   drawSocketGizmos: 1
   gizmoSize: 0.04

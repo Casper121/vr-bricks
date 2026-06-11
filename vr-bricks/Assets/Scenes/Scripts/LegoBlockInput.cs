@@ -2,20 +2,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
-/// <summary>
-/// Handles input for rotating a held LEGO block.
-/// 
-/// Rotation can be triggered by:
-/// - a VR controller input action,
-/// - the O key in the Unity editor, if keyboard fallback is enabled.
-/// </summary>
 [RequireComponent(typeof(LegoBlockGhostManager))]
 public class LegoBlockInput : MonoBehaviour
 {
-    // -------------------------------------------------------------------------
-    // Inspector: Input Settings
-    // -------------------------------------------------------------------------
-
     [Header("VR Controller Input")]
     [Tooltip("Input action used to rotate the held block clockwise.")]
     [SerializeField] private InputActionReference rotateAction;
@@ -24,16 +13,8 @@ public class LegoBlockInput : MonoBehaviour
     [Tooltip("Allows rotating the block with the O key while testing in the editor.")]
     [SerializeField] private bool allowKeyboardFallback = true;
 
-    // -------------------------------------------------------------------------
-    // Runtime References
-    // -------------------------------------------------------------------------
-
     private LegoBlockGhostManager ghostManager;
     private XRGrabInteractable grabInteractable;
-
-    // -------------------------------------------------------------------------
-    // Unity Lifecycle
-    // -------------------------------------------------------------------------
 
     private void Awake()
     {
@@ -58,29 +39,21 @@ public class LegoBlockInput : MonoBehaviour
         if (ghostManager == null)
             return;
 
-        if (!IsHeld())
-            return;
-
         if (WasRotatePressed())
-            ghostManager.RotateClockwise();
+        {
+            Debug.Log("O pressed, IsHeld=" + IsHeld());
+
+            if (IsHeld())
+                ghostManager.RotateClockwise();
+        }
     }
 
-    // -------------------------------------------------------------------------
-    // Input Helpers
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Returns true if this block is currently selected by any interactor.
-    /// </summary>
     private bool IsHeld()
     {
         return grabInteractable != null &&
                grabInteractable.interactorsSelecting.Count > 0;
     }
 
-    /// <summary>
-    /// Returns true if the rotate input was pressed this frame.
-    /// </summary>
     private bool WasRotatePressed()
     {
         if (rotateAction != null && rotateAction.action.WasPressedThisFrame())

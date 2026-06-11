@@ -39,6 +39,9 @@ public class LegoBlockGhostManager : MonoBehaviour
     [Tooltip("How far below a socket the held block center may be while the socket is still considered reachable.")]
     [SerializeField] private float allowedBelowSocket = 0.18f;
 
+    [Tooltip("After rotating, keep the current socket/orbit locked until the hand moves this far. Higher values make rotation independent from tiny hand-position differences.")]
+    [SerializeField] private float rotationAnchorUnlockDistance = 0.35f;
+
     [Tooltip("Ghost color for valid placement.")]
     [SerializeField] private Color ghostColorValid = new Color(0.3f, 0.6f, 1f, 0.4f);
 
@@ -103,6 +106,31 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     private bool hasActiveCandidate;
     private SnapCandidate activeCandidate;
+
+    // The physical underside stud that is currently attached to TargetSocket.
+    // This is stored in the block's original, unrotated local grid coordinates.
+    // When O is pressed, this same stud stays attached to the same socket while
+    // the block rotates around it. This prevents the every-frame search from
+    // choosing a different anchor just because the hand did not move.
+    private bool hasLockedPhysicalAnchor;
+    private int lockedAnchorLocalX;
+    private int lockedAnchorLocalZ;
+    private bool rotationAnchorLockActive;
+    private Vector3 rotationAnchorLockHandPosition;
+
+    // Rotation is queued and applied from HandleHeldState only.
+    // This prevents a short wrong/opposite ghost flash caused by rebuilding
+    // once from the input callback and again from the normal every-frame search.
+    private int pendingRotationSteps;
+    private int lastRotationRequestFrame = -999;
+
+    // Visible orbit step is independent from CurrentYawOffset.
+    // This fixes the "pos 1 -> pos 2 -> pos 1 -> pos 2 -> pos 3 -> pos 4" bug.
+    // CurrentYawOffset controls the mesh yaw. visibleOrbitStep controls which side
+    // of the target socket the block is placed on. Both advance by one on O,
+    // but visibleOrbitStep starts from the candidate that is already shown.
+    private bool hasVisibleOrbitStep;
+    private int visibleOrbitStep;
 
     private LegoBlock temporarilyStabilizedBlock;
 
@@ -192,11 +220,7 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     public void RotateClockwise()
     {
-        CurrentYawOffset = (CurrentYawOffset + 90f) % 360f;
-        rotationLockGraceFrame = true;
-
-        ApplyHeldRootRotation();
-        RebuildGhostIfLocked();
+        QueueRotationStep(1);
     }
 
     /// <summary>
@@ -204,11 +228,75 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     public void RotateCounterClockwise()
     {
-        CurrentYawOffset = (CurrentYawOffset - 90f + 360f) % 360f;
-        rotationLockGraceFrame = true;
+        QueueRotationStep(-1);
+    }
 
+    /// <summary>
+    /// Queues exactly one 90-degree rotation. The actual ghost rebuild happens
+    /// later in HandleHeldState, so the ghost is never rebuilt once with the
+    /// old candidate and once with the new candidate in the same visual frame.
+    /// </summary>
+    private void QueueRotationStep(int step)
+    {
+        // Guard against accidental double calls in the same frame.
+        if (lastRotationRequestFrame == Time.frameCount)
+            return;
+
+        lastRotationRequestFrame = Time.frameCount;
+        pendingRotationSteps += step;
+
+        if (pendingRotationSteps > 1)
+            pendingRotationSteps = 1;
+        else if (pendingRotationSteps < -1)
+            pendingRotationSteps = -1;
+    }
+
+    /// <summary>
+    /// Rotates the preview around the same physical underside stud and the same
+    /// target socket. This is the key difference from the normal snap search:
+    /// pressing O must not choose a new nearest anchor. It must only advance the
+    /// yaw by exactly 90 degrees and make that visible at the current socket.
+    /// </summary>
+    private void RotateAroundLockedPhysicalAnchor()
+    {
         ApplyHeldRootRotation();
-        RebuildGhostIfLocked();
+
+        LegoSocket socketToKeep = TargetSocket;
+
+        if (socketToKeep == null && hasActiveCandidate && activeCandidate.socket != null)
+            socketToKeep = activeCandidate.socket;
+
+        if (socketToKeep == null)
+        {
+            RebuildGhostIfLocked();
+            return;
+        }
+
+        // Important:
+        // Do NOT keep the same physical underside stud here.
+        // Keeping the same middle stud on a 1x3 (or similar block) can only show
+        // two visible positions because 0/180 and 90/270 overlap visually.
+        // Instead, O cycles the block around the same socket in four visible
+        // orbit positions: +Z, +X, -Z, -X in the socket grid.
+        if (!hasVisibleOrbitStep && hasActiveCandidate && activeCandidate.socket != null)
+            LockVisibleOrbitStepFromCandidate(activeCandidate);
+
+        SnapCandidate rotatedCandidate = FindFourWayOrbitCandidateForSocket(socketToKeep, visibleOrbitStep);
+
+        if (rotatedCandidate.socket == null || !IsCandidateValidForPreview(rotatedCandidate))
+        {
+            RebuildGhostIfLocked();
+            return;
+        }
+
+        activeCandidate = rotatedCandidate;
+        hasActiveCandidate = true;
+        TargetSocket = rotatedCandidate.socket;
+
+        rotationAnchorLockActive = true;
+        rotationAnchorLockHandPosition = transform.position;
+
+        RebuildGhostForCandidate(rotatedCandidate);
     }
 
     // -------------------------------------------------------------------------
@@ -240,6 +328,13 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (ghostRoot == null)
             return;
 
+        // Important for rotation stability:
+        // Destroy() removes the object only at the end of the frame.
+        // If we create the new rotated ghost in the same frame, the old ghost
+        // can remain visible for one frame and looks like a short wrong/opposite
+        // rotation before the correct ghost appears.
+        // Disabling it first hides it immediately.
+        ghostRoot.SetActive(false);
         Destroy(ghostRoot);
         ghostRoot = null;
     }
@@ -269,6 +364,13 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (!wasHeld)
             BeginHold();
 
+        if (pendingRotationSteps != 0)
+        {
+            ApplyQueuedRotationStep();
+            wasHeld = true;
+            return;
+        }
+
         ApplyHeldRootRotation();
 
         // Important fix:
@@ -282,10 +384,46 @@ public class LegoBlockGhostManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Applies a queued 90-degree rotation in one controlled place.
+    /// This avoids the short wrong-direction flash that happened when rotation
+    /// rebuilt the ghost immediately while the normal Update search was also
+    /// rebuilding it.
+    /// </summary>
+    private void ApplyQueuedRotationStep()
+    {
+        int step = pendingRotationSteps;
+        pendingRotationSteps = 0;
+
+        // Initialize the visible orbit from the position that is currently shown.
+        // Without this, the orbit direction is tied to absolute yaw and can jump
+        // back to an earlier visible position at the beginning of rotation.
+        if (!hasVisibleOrbitStep && hasActiveCandidate && activeCandidate.socket != null)
+            LockVisibleOrbitStepFromCandidate(activeCandidate);
+
+        if (!hasVisibleOrbitStep)
+            visibleOrbitStep = GetYawStep(CurrentYawOffset);
+
+        visibleOrbitStep = WrapStep(visibleOrbitStep + step);
+        hasVisibleOrbitStep = true;
+
+        CurrentYawOffset = (CurrentYawOffset + step * 90f) % 360f;
+
+        if (CurrentYawOffset < 0f)
+            CurrentYawOffset += 360f;
+
+        rotationLockGraceFrame = true;
+
+        RotateAroundLockedPhysicalAnchor();
+    }
+
+    /// <summary>
     /// Initializes physics and socket state when the block starts being held.
     /// </summary>
     private void BeginHold()
     {
+        pendingRotationSteps = 0;
+        hasVisibleOrbitStep = false;
+        visibleOrbitStep = 0;
         CurrentYawOffset = 0f;
 
         // Beim Aufheben wird der Block wieder gerade gemacht.
@@ -319,6 +457,34 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private void UpdateBestSnapCandidate()
     {
+        // After pressing O, keep the same socket/orbit candidate active until
+        // the user actually moves the hand away. Without this, the every-frame
+        // search may choose a different anchor based on hand position, making
+        // rotation work only from certain holding positions.
+        if (rotationAnchorLockActive && TargetSocket != null && hasActiveCandidate && activeCandidate.socket != null)
+        {
+            float handMoveDistance = Vector3.Distance(transform.position, rotationAnchorLockHandPosition);
+
+            if (handMoveDistance <= rotationAnchorUnlockDistance)
+            {
+                // Keep the exact orbit candidate chosen by the O-press.
+                // Do not re-search by hand distance while the hand has not moved,
+                // otherwise the system falls back into the old two-position behavior.
+                SnapCandidate lockedCandidate = RefreshCandidate(activeCandidate);
+
+                if (lockedCandidate.socket != null && IsCandidateValidForPreview(lockedCandidate))
+                {
+                    activeCandidate = lockedCandidate;
+                    hasActiveCandidate = true;
+                    TargetSocket = lockedCandidate.socket;
+                    RebuildGhostForCandidate(lockedCandidate);
+                    return;
+                }
+            }
+
+            rotationAnchorLockActive = false;
+        }
+
         SnapCandidate bestCandidate = FindInitialSnapCandidate();
 
         if (bestCandidate.socket == null)
@@ -348,6 +514,8 @@ public class LegoBlockGhostManager : MonoBehaviour
         activeCandidate = bestCandidate;
         hasActiveCandidate = true;
         TargetSocket = bestCandidate.socket;
+        LockPhysicalAnchorFromCandidate(bestCandidate);
+        LockVisibleOrbitStepFromCandidate(bestCandidate);
 
         RebuildGhostForCandidate(bestCandidate);
     }
@@ -376,8 +544,13 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         TargetSocket = null;
         currentPlacementValid = false;
+        pendingRotationSteps = 0;
         hasActiveCandidate = false;
         activeCandidate = new SnapCandidate();
+        hasLockedPhysicalAnchor = false;
+        hasVisibleOrbitStep = false;
+        visibleOrbitStep = 0;
+        rotationAnchorLockActive = false;
         lastBuiltYaw = -999f;
         rotationLockGraceFrame = false;
     }
@@ -767,6 +940,302 @@ public class LegoBlockGhostManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Chooses one of the possible anchor positions on the same socket so that
+    /// repeated O presses produce four visible positions around that socket.
+    ///
+    /// This intentionally does not choose the candidate closest to the hand.
+    /// It chooses the candidate whose block center is furthest in the desired
+    /// orbit direction for the current yaw step:
+    /// 0 = +Z, 1 = +X, 2 = -Z, 3 = -X in the socket grid.
+    /// </summary>
+    private SnapCandidate FindFourWayOrbitCandidateForSocket(LegoSocket socket, int orbitStep)
+    {
+        if (socket == null || socket.parentGrid == null)
+            return new SnapCandidate { socket = null, distance = float.MaxValue };
+
+        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+
+        Vector2 desiredDirection = GetOrbitDirectionForStep(orbitStep);
+
+        SnapCandidate best = new SnapCandidate
+        {
+            socket = null,
+            distance = float.MaxValue
+        };
+
+        float bestScore = float.NegativeInfinity;
+
+        for (int dx = 0; dx < effectiveWidth; dx++)
+        {
+            for (int dz = 0; dz < effectiveLength; dz++)
+            {
+                int startX = socket.gridX - dx;
+                int startZ = socket.gridZ - dz;
+
+                SnapCandidate candidate = new SnapCandidate
+                {
+                    socket = socket,
+                    startX = startX,
+                    startZ = startZ,
+                    effectiveWidth = effectiveWidth,
+                    effectiveLength = effectiveLength,
+                    parentGrid = socket.parentGrid,
+                    worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
+                        startX,
+                        startZ,
+                        block,
+                        CurrentYawOffset
+                    ),
+                    worldRotation =
+                        socket.GetBaseRotation() *
+                        Quaternion.Euler(0f, CurrentYawOffset, 0f)
+                };
+
+                // Important:
+                // During O-rotation we must NOT judge the orbit candidate by the
+                // current hand position. The user may be holding the block above
+                // the socket from any side. If we call MeasureCandidateDistance()
+                // here, some of the four orbit positions get rejected or scored
+                // badly depending on hand position, which recreates the old
+                // "only works from one holding position" behavior.
+                candidate.distance = 0f;
+
+                if (!IsCandidateValidForPreview(candidate))
+                    continue;
+
+                Vector3 worldOffset = candidate.worldPosition - socket.transform.position;
+                Vector3 localOffset = socket.parentGrid.transform.InverseTransformVector(worldOffset);
+                Vector2 localOffset2D = new Vector2(localOffset.x, localOffset.z);
+
+                // Prefer the candidate that lies furthest in the current orbit direction.
+                // No hand-distance tie-breaker here: O should cycle visible positions,
+                // not choose the position nearest to the hand.
+                float score = Vector2.Dot(localOffset2D, desiredDirection);
+
+                if (score <= bestScore)
+                    continue;
+
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Returns the desired visible orbit direction for a visible orbit step.
+    /// This is intentionally independent from CurrentYawOffset.
+    /// CurrentYawOffset controls mesh rotation; visibleOrbitStep controls which
+    /// side of the socket the block occupies.
+    /// </summary>
+    private Vector2 GetOrbitDirectionForStep(int step)
+    {
+        step = WrapStep(step);
+
+        switch (step)
+        {
+            case 1:
+                return Vector2.right;
+            case 2:
+                return Vector2.down;
+            case 3:
+                return Vector2.left;
+            default:
+                return Vector2.up;
+        }
+    }
+
+    /// <summary>
+    /// Stores which visible side of the target socket the current candidate uses.
+    /// On the next O press, rotation advances from this exact visible position,
+    /// instead of being guessed from absolute yaw.
+    /// </summary>
+    private void LockVisibleOrbitStepFromCandidate(SnapCandidate candidate)
+    {
+        if (candidate.socket == null || candidate.parentGrid == null)
+            return;
+
+        Vector3 worldOffset = candidate.worldPosition - candidate.socket.transform.position;
+        Vector3 localOffset = candidate.parentGrid.transform.InverseTransformVector(worldOffset);
+        Vector2 offset = new Vector2(localOffset.x, localOffset.z);
+
+        Vector2[] directions = new Vector2[]
+        {
+            Vector2.up,
+            Vector2.right,
+            Vector2.down,
+            Vector2.left
+        };
+
+        int bestStep = 0;
+        float bestScore = float.NegativeInfinity;
+
+        for (int i = 0; i < directions.Length; i++)
+        {
+            float score = Vector2.Dot(offset, directions[i]);
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestStep = i;
+            }
+        }
+
+        visibleOrbitStep = bestStep;
+        hasVisibleOrbitStep = true;
+    }
+
+    private int WrapStep(int step)
+    {
+        step %= 4;
+
+        if (step < 0)
+            step += 4;
+
+        return step;
+    }
+
+    /// <summary>
+    /// Stores which physical underside stud of the held block is currently being
+    /// placed on the target socket. The stored coordinates are in the block's
+    /// original width/length grid, not the currently rotated effective grid.
+    /// </summary>
+    private void LockPhysicalAnchorFromCandidate(SnapCandidate candidate)
+    {
+        if (candidate.socket == null)
+            return;
+
+        int anchorEffectiveX = candidate.socket.gridX - candidate.startX;
+        int anchorEffectiveZ = candidate.socket.gridZ - candidate.startZ;
+
+        Vector2Int originalAnchor = EffectiveAnchorToOriginalAnchor(
+            anchorEffectiveX,
+            anchorEffectiveZ,
+            CurrentYawOffset
+        );
+
+        lockedAnchorLocalX = Mathf.Clamp(originalAnchor.x, 0, block.width - 1);
+        lockedAnchorLocalZ = Mathf.Clamp(originalAnchor.y, 0, block.length - 1);
+        hasLockedPhysicalAnchor = true;
+    }
+
+    /// <summary>
+    /// Builds a candidate where the stored physical underside stud remains on the
+    /// given socket after the current yaw rotation.
+    /// </summary>
+    private SnapCandidate BuildCandidateFromLockedPhysicalAnchor(LegoSocket socket)
+    {
+        if (socket == null || socket.parentGrid == null || !hasLockedPhysicalAnchor)
+            return new SnapCandidate { socket = null, distance = float.MaxValue };
+
+        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+
+        Vector2Int effectiveAnchor = OriginalAnchorToEffectiveAnchor(
+            lockedAnchorLocalX,
+            lockedAnchorLocalZ,
+            CurrentYawOffset
+        );
+
+        effectiveAnchor.x = Mathf.Clamp(effectiveAnchor.x, 0, effectiveWidth - 1);
+        effectiveAnchor.y = Mathf.Clamp(effectiveAnchor.y, 0, effectiveLength - 1);
+
+        int startX = socket.gridX - effectiveAnchor.x;
+        int startZ = socket.gridZ - effectiveAnchor.y;
+
+        Vector3 worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
+            startX,
+            startZ,
+            block,
+            CurrentYawOffset
+        );
+
+        Quaternion worldRotation =
+            socket.GetBaseRotation() *
+            Quaternion.Euler(0f, CurrentYawOffset, 0f);
+
+        SnapCandidate candidate = new SnapCandidate
+        {
+            socket = socket,
+            worldPosition = worldPosition,
+            worldRotation = worldRotation,
+            startX = startX,
+            startZ = startZ,
+            effectiveWidth = effectiveWidth,
+            effectiveLength = effectiveLength,
+            parentGrid = socket.parentGrid
+        };
+
+        candidate.distance = MeasureCandidateDistance(candidate);
+        return candidate;
+    }
+
+    /// <summary>
+    /// Converts a stored original block stud coordinate into the currently
+    /// rotated effective grid coordinate.
+    /// </summary>
+    private Vector2Int OriginalAnchorToEffectiveAnchor(int originalX, int originalZ, float yawOffset)
+    {
+        int step = GetYawStep(yawOffset);
+        int width = block.width;
+        int length = block.length;
+
+        switch (step)
+        {
+            case 1:
+                return new Vector2Int(originalZ, width - 1 - originalX);
+
+            case 2:
+                return new Vector2Int(width - 1 - originalX, length - 1 - originalZ);
+
+            case 3:
+                return new Vector2Int(length - 1 - originalZ, originalX);
+
+            default:
+                return new Vector2Int(originalX, originalZ);
+        }
+    }
+
+    /// <summary>
+    /// Converts a rotated effective grid coordinate back to the block's original
+    /// local stud coordinate.
+    /// </summary>
+    private Vector2Int EffectiveAnchorToOriginalAnchor(int effectiveX, int effectiveZ, float yawOffset)
+    {
+        int step = GetYawStep(yawOffset);
+        int width = block.width;
+        int length = block.length;
+
+        switch (step)
+        {
+            case 1:
+                return new Vector2Int(width - 1 - effectiveZ, effectiveX);
+
+            case 2:
+                return new Vector2Int(width - 1 - effectiveX, length - 1 - effectiveZ);
+
+            case 3:
+                return new Vector2Int(effectiveZ, length - 1 - effectiveX);
+
+            default:
+                return new Vector2Int(effectiveX, effectiveZ);
+        }
+    }
+
+    /// <summary>
+    /// Returns the current 90-degree yaw step as 0, 1, 2, or 3.
+    /// </summary>
+    private int GetYawStep(float yawOffset)
+    {
+        int step = Mathf.RoundToInt(yawOffset / 90f) % 4;
+
+        if (step < 0)
+            step += 4;
+
+        return step;
+    }
+
+    /// <summary>
     /// Returns true if this candidate can currently be shown as a valid placement.
     /// </summary>
     private bool IsCandidateValidForPreview(SnapCandidate candidate)
@@ -1102,6 +1571,10 @@ public class LegoBlockGhostManager : MonoBehaviour
         currentPlacementValid = false;
         hasActiveCandidate = false;
         activeCandidate = new SnapCandidate();
+        hasLockedPhysicalAnchor = false;
+        hasVisibleOrbitStep = false;
+        visibleOrbitStep = 0;
+        rotationAnchorLockActive = false;
         HideGhost();
     }
 
