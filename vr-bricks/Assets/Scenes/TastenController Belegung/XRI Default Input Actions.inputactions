@@ -1005,6 +1005,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "DeleteBlock",
+                    "type": "Button",
+                    "id": "24fba59f-0467-4e1e-a3d0-c1f45f57b694",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -1269,6 +1278,28 @@
                     "processors": "",
                     "groups": "",
                     "action": "BlockMenuToggle",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "f871ff60-033c-4dcb-a2e7-2aada02b46c4",
+                    "path": "<XRController>{LeftHand}/gripPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "DeleteBlock",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "42a21652-bc51-48cb-96fe-87c2e2429f1a",
+                    "path": "<Keyboard>/f",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "DeleteBlock",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
@@ -2328,28 +2359,6 @@
                 },
                 {
                     "name": "",
-                    "id": "a467b94c-8b96-49bf-a105-da32d54cbf40",
-                    "path": "<XRController>{RightHand}/triggerButton ",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Activate",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "422c1edf-4e60-4760-bed1-719a1b2f543b",
-                    "path": "<Keyboard>/g",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Activate",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "d37763e3-96f1-46e2-ad86-54f02efb9b24",
                     "path": "<XRController>{RightHand}/trigger",
                     "interactions": "",
@@ -2411,6 +2420,28 @@
                     "processors": "",
                     "groups": "",
                     "action": "UI Press Value",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "0c22ca34-daa8-4b75-8519-f5322a4501cf",
+                    "path": "<XRController>{RightHand}/triggerPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "659efe53-621a-447c-83d9-dd5a95e18031",
+                    "path": "<Keyboard>/g",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

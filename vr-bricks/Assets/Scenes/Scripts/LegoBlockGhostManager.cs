@@ -1685,7 +1685,15 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         return (legoBlock.width, legoBlock.length);
     }
-
+    /// <summary>
+    /// Cleans up sockets and state when the block is deleted externally.
+    /// </summary>
+    public void ForceRelease()
+    {
+        ReleaseCurrentOccupiedSocketsAndNotifyParent();
+        ClearTemporaryStabilization();
+        DisableAllSocketInteractors(false);
+    }
     // -------------------------------------------------------------------------
     // Gizmos
     // -------------------------------------------------------------------------
