@@ -495,6 +495,19 @@ public class LegoBlockGhostManager : MonoBehaviour
             return;
         }
 
+        // Ungültiger Kandidat: roten Ghost zeigen aber nicht einrasten
+        if (!IsCandidateValidForPreview(bestCandidate))
+        {
+            ClearTemporaryStabilization();
+            TargetSocket = bestCandidate.socket;
+            hasActiveCandidate = true;
+            activeCandidate = bestCandidate;
+            BuildGhostAtPosition(bestCandidate.worldPosition, bestCandidate.worldRotation, false);
+            currentPlacementValid = false;
+            lastBuiltYaw = CurrentYawOffset;
+            return;
+        }
+
         // Hysteresis:
         // If the current candidate is still usable and almost as good as the
         // newly found one, keep it. This prevents flicker between neighboring
@@ -1285,6 +1298,8 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     /// <summary>
     /// Finds the best nearby socket candidate for the currently held block.
+    /// Returns valid candidates first; falls back to the nearest invalid candidate
+    /// so a red ghost can still be shown when placement is blocked.
     /// </summary>
     private SnapCandidate FindInitialSnapCandidate()
     {
@@ -1292,15 +1307,12 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         LegoSocket[] allSockets = FindObjectsOfType<LegoSocket>();
 
-        SnapCandidate best = new SnapCandidate
-        {
-            socket = null,
-            distance = float.MaxValue
-        };
+        SnapCandidate bestValid = new SnapCandidate { socket = null, distance = float.MaxValue };
+        SnapCandidate bestInvalid = new SnapCandidate { socket = null, distance = float.MaxValue };
 
         foreach (LegoSocket socket in allSockets)
         {
-            if (!IsSocketUsableForInitialSearch(socket))
+            if (!IsSocketUsableForInvalidSearch(socket))
                 continue;
 
             // Try every possible underside stud/anchor of the held block.
@@ -1341,22 +1353,30 @@ public class LegoBlockGhostManager : MonoBehaviour
                     if (candidate.distance > snapDistanceThreshold)
                         continue;
 
-                    if (!IsCandidateValidForPreview(candidate))
-                        continue;
-
-                    if (candidate.distance >= best.distance)
-                        continue;
-
-                    best = candidate;
+                    if (IsCandidateValidForPreview(candidate))
+                    {
+                        if (candidate.distance < bestValid.distance)
+                            bestValid = candidate;
+                    }
+                    else
+                    {
+                        if (candidate.distance < bestInvalid.distance)
+                            bestInvalid = candidate;
+                    }
                 }
             }
         }
 
-        return best;
+        // Gültiger Kandidat hat immer Vorrang vor ungültigem
+        if (bestValid.socket != null)
+            return bestValid;
+
+        return bestInvalid;
     }
 
     /// <summary>
     /// Returns true if the socket can be considered during initial snap search.
+    /// Only free (unoccupied) sockets pass this check.
     /// </summary>
     private bool IsSocketUsableForInitialSearch(LegoSocket socket)
     {
@@ -1370,6 +1390,23 @@ public class LegoBlockGhostManager : MonoBehaviour
         // forgiving. On high stacks and small 1x1 blocks the hand/controller
         // can easily be a bit below the target socket even though the intended
         // placement is clear.
+        if (transform.position.y < socket.transform.position.y - allowedBelowSocket)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Like IsSocketUsableForInitialSearch, but also allows occupied sockets
+    /// so that a red ghost can be shown when placement is blocked.
+    /// </summary>
+    private bool IsSocketUsableForInvalidSearch(LegoSocket socket)
+    {
+        if (socket == null) return false;
+        if (!socket.isInnerSocket) return false;
+        if (socket.transform.IsChildOf(transform)) return false;
+        if (socket.parentGrid == null) return false;
+
         if (transform.position.y < socket.transform.position.y - allowedBelowSocket)
             return false;
 
