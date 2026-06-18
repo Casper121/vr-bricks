@@ -49,6 +49,17 @@ public class LegoBlockGhostManager : MonoBehaviour
     [SerializeField] private Color ghostColorInvalid = new Color(1f, 0.2f, 0.2f, 0.4f);
 
     // -------------------------------------------------------------------------
+    // Inspector: Grid Placement
+    // -------------------------------------------------------------------------
+
+    [Header("Grid Placement")]
+    [Tooltip("If enabled, blocks cannot be freely dropped. They must snap to a valid LEGO socket/grid position.")]
+    [SerializeField] private bool requireGridPlacement = true;
+
+    [Tooltip("If enabled, a block returns to its position before grabbing when released without a valid grid snap.")]
+    [SerializeField] private bool returnToLastPositionWhenInvalid = true;
+
+    // -------------------------------------------------------------------------
     // Inspector: Visual Root
     // -------------------------------------------------------------------------
 
@@ -103,6 +114,12 @@ public class LegoBlockGhostManager : MonoBehaviour
     private bool currentPlacementValid;
     private bool rotationLockGraceFrame;
     private float lastBuiltYaw = -999f;
+
+    // Used when grid placement is required: invalid releases return here
+    // instead of falling freely onto the floor/table.
+    private Vector3 lastValidPosition;
+    private Quaternion lastValidRotation;
+    private bool hasLastValidPose;
 
     private bool hasActiveCandidate;
     private SnapCandidate activeCandidate;
@@ -421,6 +438,10 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private void BeginHold()
     {
+        lastValidPosition = transform.position;
+        lastValidRotation = transform.rotation;
+        hasLastValidPose = true;
+
         pendingRotationSteps = 0;
         hasVisibleOrbitStep = false;
         visibleOrbitStep = 0;
@@ -546,11 +567,20 @@ public class LegoBlockGhostManager : MonoBehaviour
         HideGhost();
 
         if (hasActiveCandidate && activeCandidate.socket != null && currentPlacementValid)
+        {
             TrySnapToCandidate(activeCandidate);
+        }
         else if (TargetSocket != null && currentPlacementValid)
+        {
             TrySnapToTarget();
+        }
         else
-            FallbackRelease();
+        {
+            if (requireGridPlacement)
+                RejectInvalidGridPlacement();
+            else
+                FallbackRelease();
+        }
 
         DisableAllSocketInteractors(false);
         ClearTemporaryStabilization();
@@ -586,7 +616,11 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         if (!canPlace)
         {
-            FallbackRelease();
+            if (requireGridPlacement)
+                RejectInvalidGridPlacement();
+            else
+                FallbackRelease();
+
             return;
         }
 
@@ -648,7 +682,11 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         if (!canPlace)
         {
-            FallbackRelease();
+            if (requireGridPlacement)
+                RejectInvalidGridPlacement();
+            else
+                FallbackRelease();
+
             return;
         }
 
@@ -689,6 +727,39 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
+    }
+
+    /// <summary>
+    /// Rejects a release that is not on a valid LEGO grid position.
+    /// The block does not fall freely onto the floor/table.
+    /// </summary>
+    private void RejectInvalidGridPlacement()
+    {
+        HideGhost();
+        ClearTemporaryStabilization();
+
+        ResetVisualRoot();
+        CurrentYawOffset = 0f;
+
+        if (returnToLastPositionWhenInvalid && hasLastValidPose)
+        {
+            transform.position = lastValidPosition;
+            transform.rotation = lastValidRotation;
+        }
+
+        heldBaseRotation = transform.rotation;
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+            rb.detectCollisions = true;
+            rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
+        }
+
+        // Mark the block stable again, because it has been returned instead of dropped.
+        block.SetSnappedToSocket(hasLastValidPose);
     }
 
     /// <summary>
