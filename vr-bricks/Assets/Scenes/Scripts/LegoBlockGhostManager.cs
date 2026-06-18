@@ -1,7 +1,8 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
-using System.Collections.Generic;
 
 /// <summary>
 /// Handles LEGO block snapping, ghost preview, placement validation,
@@ -340,6 +341,11 @@ public class LegoBlockGhostManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Event to listen to when snapping
+    /// </summary>
+    public UnityEvent Snapped;
+
+    /// <summary>
     /// Called after this block has been successfully snapped.
     /// </summary>
     public void OnSnapped()
@@ -350,6 +356,7 @@ public class LegoBlockGhostManager : MonoBehaviour
         ClearTargetAndGhost();
         lastBuiltYaw = -999f;
         rotationLockGraceFrame = false;
+        Snapped.Invoke();
     }
 
     // -------------------------------------------------------------------------
