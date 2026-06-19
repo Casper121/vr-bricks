@@ -1,16 +1,18 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class LegoScaleMenu : MonoBehaviour
 {
      [Header("UI References")]
+    [SerializeField] public Canvas menuCanvas;
     [SerializeField] private Slider scaleSlider;
-    [SerializeField] private Text scaleLabel;
+    [SerializeField] private TMP_Text scaleLabel;
     [SerializeField] private Button applyButton;
     [SerializeField] private Button resetButton;
 
     [Header("Configuration")]
-    [SerializeField] private float minScale = 0.5f;
+    [SerializeField] private float minScale = 0.1f;
     [SerializeField] private float maxScale = 4.0f;
     [SerializeField] private float defaultScale = 1.0f;
 
@@ -18,6 +20,8 @@ public class LegoScaleMenu : MonoBehaviour
 
     private void Awake()
     {
+        if (menuCanvas != null) menuCanvas.gameObject.SetActive(false);
+
         scaleSlider.minValue = minScale;
         scaleSlider.maxValue = maxScale;
         scaleSlider.value    = defaultScale;
@@ -29,10 +33,15 @@ public class LegoScaleMenu : MonoBehaviour
         UpdateLabel(defaultScale);
     }
 
-    [System.Obsolete]
-    public void OnMenuOpened()
+
+    public void OnEnable()
     {
         cachedBlocks = FindObjectsByType<LegoBlock>(FindObjectsSortMode.None);
+    }
+
+    public void OnDisable()
+    {
+        gameObject.SetActive(false);
     }
 
     private void OnSliderChanged(float value)

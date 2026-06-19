@@ -1885,6 +1885,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       insertIndex: 4
       addedObject: {fileID: 789061686}
+    - targetCorrespondingSourceObject: {fileID: 9173983156334026967, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1130262021}
   m_SourcePrefab: {fileID: 100100000, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
 --- !u!1 &469188586
 GameObject:
@@ -2037,6 +2040,7 @@ GameObject:
   - component: {fileID: 506289333}
   - component: {fileID: 506289332}
   - component: {fileID: 506289331}
+  - component: {fileID: 506289336}
   m_Layer: 5
   m_Name: SettingsMenu
   m_TagString: Untagged
@@ -2165,6 +2169,26 @@ Canvas:
   m_SortingLayerID: 0
   m_SortingOrder: 1
   m_TargetDisplay: 0
+--- !u!114 &506289336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 506289329}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dadd73f7edd8f244a9698a98ced95099, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LegoScaleMenu
+  menuCanvas: {fileID: 506289335}
+  scaleSlider: {fileID: 61584874}
+  scaleLabel: {fileID: 1059980024}
+  applyButton: {fileID: 1151637961}
+  resetButton: {fileID: 1237607462}
+  minScale: 0.5
+  maxScale: 4
+  defaultScale: 1
 --- !u!1 &573468225
 GameObject:
   m_ObjectHideFlags: 0
@@ -2599,7 +2623,7 @@ MonoBehaviour:
   blockMenuIcon: {fileID: 0}
   musicPlayerIcon: {fileID: 0}
   mainMenuIcon: {fileID: 0}
-  blockMenu: {fileID: 0}
+  blockMenu: {fileID: 506289329}
   musicPlayerPanel: {fileID: 0}
   mainMenuPanel: {fileID: 65619014}
   buttonsRoot: {fileID: 1561315632}
@@ -3007,10 +3031,10 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1473124229}
-        m_TargetAssemblyTypeName: LegoHandMenu, Assembly-CSharp
-        m_MethodName: SetMenuOpen
-        m_Mode: 6
+      - m_Target: {fileID: 506289336}
+        m_TargetAssemblyTypeName: LegoScaleMenu, Assembly-CSharp
+        m_MethodName: OnDisable
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -3018,7 +3042,7 @@ MonoBehaviour:
           m_FloatArgument: 0
           m_StringArgument: 
           m_BoolArgument: 0
-        m_CallState: 2
+        m_CallState: 1
 --- !u!114 &794136852
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4438,6 +4462,36 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 86d1bcee93b3d7542bab29882c1135c0, type: 3}
+--- !u!1 &1130262020 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 9173983156334026967, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+  m_PrefabInstance: {fileID: 441087506}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1130262021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1130262020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a69beb15fa897984189d37eabdd6226e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LegoWristButtons
+  blockMenuButton: {fileID: 0}
+  musicPlayerButton: {fileID: 0}
+  mainMenuButton: {fileID: 0}
+  blockMenuIcon: {fileID: 0}
+  musicPlayerIcon: {fileID: 0}
+  mainMenuIcon: {fileID: 0}
+  blockMenu: {fileID: 0}
+  musicPlayerPanel: {fileID: 0}
+  mainMenuPanel: {fileID: 0}
+  buttonsRoot: {fileID: 0}
+  showDuration: 0.28
+  startScale: 0.85
+  useFade: 0
 --- !u!1 &1151637959
 GameObject:
   m_ObjectHideFlags: 0
