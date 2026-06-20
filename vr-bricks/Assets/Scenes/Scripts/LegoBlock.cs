@@ -52,6 +52,7 @@ public class LegoBlock : MonoBehaviour
 
     private XRGrabInteractable grabInteractable;
     private Rigidbody rb;
+    public LegoSocket SnappedSocket { get; set; }
 
     // -------------------------------------------------------------------------
     // Runtime State
@@ -84,6 +85,11 @@ public class LegoBlock : MonoBehaviour
     {
         attachedBlocksAbove++;
         UpdateStabilityAndGrabability();
+    }
+
+    public float GetWorldHeight()
+    {
+        return height * transform.localScale.y;
     }
 
     /// <summary>
@@ -181,10 +187,10 @@ public class LegoBlock : MonoBehaviour
 
         Vector3 boxCenter =
             transform.position +
-            Vector3.up * (height * blockHeightScale / 2f) +
+            Vector3.up * (height * blockHeightScale * transform.localScale.y / 2f) +
             gizmoOffset;
 
-        Gizmos.matrix = Matrix4x4.TRS(boxCenter, transform.rotation, Vector3.one);
+        Gizmos.matrix = Matrix4x4.TRS(boxCenter, transform.rotation, transform.localScale);
         Gizmos.DrawWireCube(Vector3.zero, boxSize);
         Gizmos.matrix = Matrix4x4.identity;
     }

@@ -38,7 +38,7 @@ public class LegoWristButtons : MonoBehaviour
     // -------------------------------------------------------------------------
 
     [Header("Panels to Open")]
-    public LegoHandMenu blockMenu;
+    public GameObject blockMenu;
     public GameObject musicPlayerPanel;
     public GameObject mainMenuPanel;
 
@@ -90,11 +90,6 @@ public class LegoWristButtons : MonoBehaviour
         SetupButton(mainMenuButton, mainMenuIcon, OnMainMenuPressed);
 
         ForceRefreshVisibility();
-    }
-
-    private void Update()
-    {
-        UpdateButtonsVisibility();
     }
 
     // -------------------------------------------------------------------------
@@ -214,7 +209,7 @@ public class LegoWristButtons : MonoBehaviour
     /// </summary>
     private bool AnyPanelOpenOrClosing()
     {
-        return IsOpenOrClosing(blockMenu) ||
+        return IsOpen(blockMenu) ||
                IsOpen(musicPlayerPanel) ||
                IsOpen(mainMenuPanel);
     }
@@ -346,7 +341,7 @@ public class LegoWristButtons : MonoBehaviour
         if (blockMenu == null)
             return;
 
-        blockMenu.SetMenuOpen(!blockMenu.IsOpenOrClosing);
+        blockMenu.SetActive(!blockMenu.activeSelf);
     }
 
     /// <summary>

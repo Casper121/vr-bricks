@@ -661,6 +661,8 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
+        currentSocket = finalCandidate.socket;
+        block.SnappedSocket = currentSocket;
     }
 
     /// <summary>
@@ -727,6 +729,8 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
+        currentSocket = finalCandidate.socket;
+        block.SnappedSocket = currentSocket;
     }
 
     /// <summary>
@@ -872,6 +876,7 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         ghostRoot = new GameObject("SnapGhost");
         ghostRoot.transform.SetPositionAndRotation(position, rotation);
+        ghostRoot.transform.localScale = transform.localScale;
 
         foreach (MeshSnapshot snapshot in meshSnapshots)
         {
@@ -1602,6 +1607,7 @@ public class LegoBlockGhostManager : MonoBehaviour
         }
 
         currentSocket = null;
+        block.SnappedSocket = null;
     }
 
     /// <summary>
