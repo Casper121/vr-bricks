@@ -872,6 +872,7 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         ghostRoot = new GameObject("SnapGhost");
         ghostRoot.transform.SetPositionAndRotation(position, rotation);
+        ghostRoot.transform.localScale = transform.localScale;
 
         foreach (MeshSnapshot snapshot in meshSnapshots)
         {

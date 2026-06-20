@@ -1,4 +1,5 @@
 using TMPro;
+using Unity.Android.Gradle;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -65,6 +66,7 @@ public class LegoScaleMenu : MonoBehaviour
         if (cachedBlocks == null) return;
         foreach (LegoBlock block in cachedBlocks)
             block.transform.localScale = Vector3.one * uniformScale;
+            
     }
 
     private void UpdateLabel(float value)
