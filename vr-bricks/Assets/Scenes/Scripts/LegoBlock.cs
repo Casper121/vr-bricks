@@ -52,6 +52,7 @@ public class LegoBlock : MonoBehaviour
 
     private XRGrabInteractable grabInteractable;
     private Rigidbody rb;
+    public LegoSocket SnappedSocket { get; set; }
 
     // -------------------------------------------------------------------------
     // Runtime State
@@ -84,6 +85,11 @@ public class LegoBlock : MonoBehaviour
     {
         attachedBlocksAbove++;
         UpdateStabilityAndGrabability();
+    }
+
+    public float GetWorldHeight()
+    {
+        return height * transform.localScale.y;
     }
 
     /// <summary>

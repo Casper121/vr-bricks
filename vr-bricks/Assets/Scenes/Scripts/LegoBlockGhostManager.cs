@@ -661,6 +661,8 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
+        currentSocket = finalCandidate.socket;
+        block.SnappedSocket = currentSocket;
     }
 
     /// <summary>
@@ -727,6 +729,8 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
+        currentSocket = finalCandidate.socket;
+        block.SnappedSocket = currentSocket;
     }
 
     /// <summary>
@@ -1603,6 +1607,7 @@ public class LegoBlockGhostManager : MonoBehaviour
         }
 
         currentSocket = null;
+        block.SnappedSocket = null;
     }
 
     /// <summary>

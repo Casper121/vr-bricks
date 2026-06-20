@@ -1,5 +1,5 @@
+using System;
 using TMPro;
-using Unity.Android.Gradle;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -66,8 +66,33 @@ public class LegoScaleMenu : MonoBehaviour
         if (cachedBlocks == null) return;
         foreach (LegoBlock block in cachedBlocks)
             block.transform.localScale = Vector3.one * uniformScale;
-            
+        
+        RepositionStackedBlocks();    
     }
+
+    private void RepositionStackedBlocks()
+{
+    Array.Sort(cachedBlocks, (a, b) =>
+        a.transform.position.y.CompareTo(b.transform.position.y));
+
+    foreach (LegoBlock block in cachedBlocks)
+    {
+        if (block.SnappedSocket == null) continue;
+
+        LegoBlock parentBlock = block.SnappedSocket.GetComponentInParent<LegoBlock>();
+        if (parentBlock == null) continue;
+
+        Vector3 socketWorldPos = block.SnappedSocket.transform.position;
+        float parentTopY    = parentBlock.transform.position.y + parentBlock.GetWorldHeight() / 2f;
+        float childHalfHeight = block.GetWorldHeight() / 2f;
+
+        block.transform.position = new Vector3(
+            socketWorldPos.x,
+            parentTopY + childHalfHeight,
+            socketWorldPos.z
+        );
+    }
+}
 
     private void UpdateLabel(float value)
     {
