@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &6714145807246253932
+--- !u!1 &7182020204368343311
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,46 +8,46 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 4278156594561981776}
-  - component: {fileID: 2794231140661255649}
-  - component: {fileID: 4352733258730614550}
+  - component: {fileID: 889924451500026406}
+  - component: {fileID: 7406215078980839744}
+  - component: {fileID: 2413707291520806189}
   m_Layer: 0
-  m_Name: 1x2
+  m_Name: 2x2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &4278156594561981776
+--- !u!4 &889924451500026406
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6714145807246253932}
+  m_GameObject: {fileID: 7182020204368343311}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0.2, z: 0}
-  m_LocalScale: {x: 20, y: 20, z: 20}
+  m_LocalPosition: {x: 0, y: 0.05, z: 0}
+  m_LocalScale: {x: 20, y: 20, z: 5}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 3736193747474637054}
+  m_Father: {fileID: 6263771922163300340}
   m_LocalEulerAnglesHint: {x: -90, y: 0, z: 0}
---- !u!33 &2794231140661255649
+--- !u!33 &7406215078980839744
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6714145807246253932}
-  m_Mesh: {fileID: 776356939339947242, guid: 0c599df1438b4e443b32061fcbe779cd, type: 3}
---- !u!23 &4352733258730614550
+  m_GameObject: {fileID: 7182020204368343311}
+  m_Mesh: {fileID: 3074696894467530729, guid: fc13174361971514d8b0e2afe17cd57d, type: 3}
+--- !u!23 &2413707291520806189
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6714145807246253932}
+  m_GameObject: {fileID: 7182020204368343311}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -66,7 +66,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -876546973899608171, guid: 0c599df1438b4e443b32061fcbe779cd, type: 3}
+  - {fileID: -876546973899608171, guid: fc13174361971514d8b0e2afe17cd57d, type: 3}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -90,7 +90,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &8615319719814704441
+--- !u!1 &9029045269669569917
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -98,44 +98,44 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3736193747474637054}
-  - component: {fileID: 241409661778382201}
-  - component: {fileID: 1261555581518980544}
-  - component: {fileID: 4794190987906228320}
-  - component: {fileID: 2128130097423508184}
-  - component: {fileID: -2865036693153841349}
-  - component: {fileID: 2084290812632792858}
-  - component: {fileID: 4090887122796177523}
+  - component: {fileID: 6263771922163300340}
+  - component: {fileID: 5161515254432485314}
+  - component: {fileID: 6232638458156007115}
+  - component: {fileID: 1416453161608173133}
+  - component: {fileID: 8233108166542769444}
+  - component: {fileID: 7051210870986824869}
+  - component: {fileID: 6644044467638286978}
+  - component: {fileID: 7773646465548225643}
   m_Layer: 0
-  m_Name: LegoBlock1x2
+  m_Name: LegoBlockPlate 2x2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3736193747474637054
+--- !u!4 &6263771922163300340
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
+  m_GameObject: {fileID: 9029045269669569917}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 4278156594561981776}
+  - {fileID: 889924451500026406}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!54 &241409661778382201
+--- !u!54 &5161515254432485314
 Rigidbody:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
+  m_GameObject: {fileID: 9029045269669569917}
   serializedVersion: 5
   m_Mass: 1
   m_LinearDamping: 0
@@ -156,19 +156,19 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 2
---- !u!114 &1261555581518980544
+--- !u!114 &6232638458156007115
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
+  m_GameObject: {fileID: 9029045269669569917}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6d94ce16edcf12b439cbd12f7134349d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LegoBlock
-  width: 1
+  width: 2
   length: 2
   height: 0.4
   footprintMode: 0
@@ -176,15 +176,80 @@ MonoBehaviour:
   - {x: 0, y: 0}
   studSizeX: 0.4
   studSizeZ: 0.4
-  blockHeightScale: 1
-  gizmoOffset: {x: 0, y: 0, z: -0.2}
---- !u!114 &4794190987906228320
+  blockHeightScale: 0.25
+  gizmoOffset: {x: -0.2, y: 0, z: -0.2}
+--- !u!65 &1416453161608173133
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9029045269669569917}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.8, y: 0.1, z: 0.8}
+  m_Center: {x: 0, y: 0.05, z: 0}
+--- !u!114 &8233108166542769444
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
+  m_GameObject: {fileID: 9029045269669569917}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a154492683e0cf94880e9e71ef760df2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LegoBlockGhostManager
+  snapDistanceThreshold: 0.6
+  maxAxisOffset: 0.8
+  releaseDistanceMultiplier: 1.1
+  candidateSwitchMargin: 0.08
+  allowedBelowSocket: 0.18
+  usePhysicalFloorSocketBlocker: 0
+  floorSocketBlockerRayDistance: 0.35
+  floorSocketBlockerStartLift: 0.03
+  rotationAnchorUnlockDistance: 0.35
+  ghostColorValid: {r: 0.3, g: 0.6, b: 1, a: 0.4}
+  ghostColorInvalid: {r: 1, g: 0.2, b: 0.2, a: 0.4}
+  preventGhostIntersectingBlocks: 1
+  blockCollisionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  collisionCheckShrink: 0.035
+  verticalTouchTolerance: 0.025
+  visualRoot: {fileID: 889924451500026406}
+--- !u!114 &7051210870986824869
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9029045269669569917}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b52be7ad307d1d46ab0aec2f7e27205, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LegoBlockInput
+  rotateAction: {fileID: -7556612153624368767, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  allowKeyboardFallback: 1
+--- !u!114 &6644044467638286978
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9029045269669569917}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ad34abafad169848a38072baa96cdb2, type: 3}
@@ -192,7 +257,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.XR.Interaction.Toolkit::UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable
   m_InteractionManager: {fileID: 0}
   m_Colliders:
-  - {fileID: 2128130097423508184}
+  - {fileID: 1416453161608173133}
   m_InteractionLayers:
     m_Bits: 2
   m_DistanceCalculationMode: 1
@@ -262,7 +327,7 @@ MonoBehaviour:
   m_ReinitializeDynamicAttachEverySingleGrab: 1
   m_AttachEaseInTime: 0.15
   m_MovementType: 0
-  m_PredictedVisualsTransform: {fileID: 4278156594561981776}
+  m_PredictedVisualsTransform: {fileID: 889924451500026406}
   m_VelocityDamping: 1
   m_VelocityScale: 1
   m_AngularVelocityDamping: 1
@@ -308,82 +373,29 @@ MonoBehaviour:
   m_LimitAngularVelocity: 0
   m_MaxLinearVelocityDelta: 10
   m_MaxAngularVelocityDelta: 20
---- !u!65 &2128130097423508184
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.4, y: 0.4, z: 0.8}
-  m_Center: {x: 0, y: 0.2, z: 0}
---- !u!114 &-2865036693153841349
+--- !u!114 &7773646465548225643
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
+  m_GameObject: {fileID: 9029045269669569917}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 94507dfc8db104b4692f3f6a65fe8b63, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LegoBlockSocketSpawner
   anchorPointPrefab: {fileID: 6720443631050265724, guid: 108fa62865af05d4e8661d653e4bd54f, type: 3}
-  blockWidth: 1
+  gridMode: 0
+  customSocketCells:
+  - {x: 0, y: 0}
+  blockWidth: 2
   blockLength: 2
-  socketY: 0
-  offsetX: 0
+  socketY: -0.3
+  offsetX: -0.2
   offsetZ: -0.2
   studSpacingX: 0.4
   studSpacingZ: 0.4
   hideGeneratedSocketRenderers: 0
   drawSocketGizmos: 1
   gizmoSize: 0.04
---- !u!114 &2084290812632792858
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a154492683e0cf94880e9e71ef760df2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LegoBlockGhostManager
-  snapDistanceThreshold: 0.6
-  maxAxisOffset: 0.5
-  releaseDistanceMultiplier: 1.15
-  candidateSwitchMargin: 0.08
-  allowedBelowSocket: 0.18
-  rotationAnchorUnlockDistance: 0.35
-  ghostColorValid: {r: 0.3, g: 0.6, b: 1, a: 0.4}
-  ghostColorInvalid: {r: 1, g: 0.2, b: 0.2, a: 0.4}
-  visualRoot: {fileID: 4278156594561981776}
---- !u!114 &4090887122796177523
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8615319719814704441}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8b52be7ad307d1d46ab0aec2f7e27205, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LegoBlockInput
-  rotateAction: {fileID: -7556612153624368767, guid: c348712bda248c246b8c49b3db54643f, type: 3}
-  allowKeyboardFallback: 0

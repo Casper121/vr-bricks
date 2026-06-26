@@ -7,6 +7,10 @@ using System.Collections.Generic;
 /// Handles LEGO block snapping, ghost preview, placement validation,
 /// held-block rotation, and socket occupation.
 /// 
+/// Works with arbitrary stud footprints (see LegoBlock.StudFootprint), so this
+/// supports both simple rectangular blocks (2x2, 1x4, ...) and non-rectangular
+/// blocks (e.g. an L-shaped block made of a 1x2 plus an extra 1x1 stud).
+/// 
 /// Important XR setup for the block:
 /// - XR Grab Interactable Movement Type: Velocity Tracking
 /// - Track Position: enabled
@@ -39,7 +43,33 @@ public class LegoBlockGhostManager : MonoBehaviour
     [Tooltip("How far below a socket the held block center may be while the socket is still considered reachable.")]
     [SerializeField] private float allowedBelowSocket = 0.18f;
 
-    [Tooltip("After rotating, keep the current socket/orbit locked until the hand moves this far. Higher values make rotation independent from tiny hand-position differences.")]
+    [Header("Surface Targeting")]
+    [Tooltip("If enabled, snapping first chooses the top surface under the held block by raycast, then searches only sockets on that surface. This prevents floor/lower block sockets from stealing the ghost through plates.")]
+    [SerializeField] private bool useSurfaceRaycastTargeting = true;
+
+    [Tooltip("How high above the held block root the downward surface ray starts.")]
+    [SerializeField] private float surfaceRayStartHeight = 1.0f;
+
+    [Tooltip("How far downward the surface ray searches.")]
+    [SerializeField] private float surfaceRayDistance = 4.0f;
+
+    [Tooltip("Layers that can be hit as snap surfaces. Put LEGO blocks and floor grid on these layers. Everything is okay for testing.")]
+    [SerializeField] private LayerMask surfaceRayMask = ~0;
+
+    [Tooltip("Draws/logs which surface grid was selected.")]
+    [SerializeField] private bool debugSurfaceTargeting = false;
+
+    [Header("Floor Socket Blocking")]
+    [Tooltip("If enabled, floor sockets can also be blocked by a short physical raycast. Leave this OFF if free cells next to blocks sometimes become unsnappable.")]
+    [SerializeField] private bool usePhysicalFloorSocketBlocker = false;
+
+    [Tooltip("Only used when Use Physical Floor Socket Blocker is enabled. Keep this small, otherwise neighboring floor sockets may be blocked by oversized colliders.")]
+    [SerializeField] private float floorSocketBlockerRayDistance = 0.35f;
+
+    [Tooltip("Small lift from the floor socket before checking upward for a directly covering block.")]
+    [SerializeField] private float floorSocketBlockerStartLift = 0.03f;
+
+    [Tooltip("After rotating, keep the current socket/anchor locked until the hand moves this far. Higher values make rotation independent from tiny hand-position differences.")]
     [SerializeField] private float rotationAnchorUnlockDistance = 0.35f;
 
     [Tooltip("Ghost color for valid placement.")]
@@ -48,16 +78,18 @@ public class LegoBlockGhostManager : MonoBehaviour
     [Tooltip("Ghost color for invalid placement.")]
     [SerializeField] private Color ghostColorInvalid = new Color(1f, 0.2f, 0.2f, 0.4f);
 
-    // -------------------------------------------------------------------------
-    // Inspector: Grid Placement
-    // -------------------------------------------------------------------------
+    [Header("Collision Blocking")]
+    [Tooltip("If enabled, the ghost becomes invalid when the block body would intersect another already placed block.")]
+    [SerializeField] private bool preventGhostIntersectingBlocks = true;
 
-    [Header("Grid Placement")]
-    [Tooltip("If enabled, blocks cannot be freely dropped. They must snap to a valid LEGO socket/grid position.")]
-    [SerializeField] private bool requireGridPlacement = true;
+    [Tooltip("Physics layers that contain LEGO block colliders. Leave on Everything if unsure, but it is better to use a LEGO layer.")]
+    [SerializeField] private LayerMask blockCollisionMask = ~0;
 
-    [Tooltip("If enabled, a block returns to its position before grabbing when released without a valid grid snap.")]
-    [SerializeField] private bool returnToLastPositionWhenInvalid = true;
+    [Tooltip("Shrinks the overlap test slightly so touching faces are allowed, but real intersections are blocked.")]
+    [SerializeField] private float collisionCheckShrink = 0.035f;
+
+    [Tooltip("Small vertical tolerance so a block can sit on the support block without being counted as intersecting it.")]
+    [SerializeField] private float verticalTouchTolerance = 0.025f;
 
     // -------------------------------------------------------------------------
     // Inspector: Visual Root
@@ -78,6 +110,7 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     /// <summary>
     /// Current socket that the held block is locked onto for preview.
+    /// This is the socket under the block's footprint anchor stud (local cell 0,0).
     /// </summary>
     public LegoSocket TargetSocket { get; private set; }
 
@@ -112,26 +145,15 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     private bool wasHeld;
     private bool currentPlacementValid;
-    private bool rotationLockGraceFrame;
     private float lastBuiltYaw = -999f;
-
-    // Used when grid placement is required: invalid releases return here
-    // instead of falling freely onto the floor/table.
-    private Vector3 lastValidPosition;
-    private Quaternion lastValidRotation;
-    private bool hasLastValidPose;
 
     private bool hasActiveCandidate;
     private SnapCandidate activeCandidate;
 
-    // The physical underside stud that is currently attached to TargetSocket.
-    // This is stored in the block's original, unrotated local grid coordinates.
-    // When O is pressed, this same stud stays attached to the same socket while
-    // the block rotates around it. This prevents the every-frame search from
-    // choosing a different anchor just because the hand did not move.
-    private bool hasLockedPhysicalAnchor;
-    private int lockedAnchorLocalX;
-    private int lockedAnchorLocalZ;
+    // While true, the every-frame search keeps the current activeCandidate's
+    // footprint anchor instead of jumping to a different nearby socket. This is
+    // set right after a rotation (O press) and released once the hand has moved
+    // far enough. This is what makes "rotate in place" feel stable.
     private bool rotationAnchorLockActive;
     private Vector3 rotationAnchorLockHandPosition;
 
@@ -140,14 +162,6 @@ public class LegoBlockGhostManager : MonoBehaviour
     // once from the input callback and again from the normal every-frame search.
     private int pendingRotationSteps;
     private int lastRotationRequestFrame = -999;
-
-    // Visible orbit step is independent from CurrentYawOffset.
-    // This fixes the "pos 1 -> pos 2 -> pos 1 -> pos 2 -> pos 3 -> pos 4" bug.
-    // CurrentYawOffset controls the mesh yaw. visibleOrbitStep controls which side
-    // of the target socket the block is placed on. Both advance by one on O,
-    // but visibleOrbitStep starts from the candidate that is already shown.
-    private bool hasVisibleOrbitStep;
-    private int visibleOrbitStep;
 
     private LegoBlock temporarilyStabilizedBlock;
 
@@ -163,18 +177,30 @@ public class LegoBlockGhostManager : MonoBehaviour
         public Vector3 localPosition;
         public Quaternion localRotation;
         public Vector3 localScale;
+        public MeshRenderer originalRenderer;
     }
 
+    /// <summary>
+    /// A possible placement of the whole block.
+    /// 
+    /// "Anchor" refers to the block's local footprint origin (cell 0,0 in
+    /// LegoBlock.StudFootprint, BEFORE rotation). anchorGridX/anchorGridZ store
+    /// where that origin cell currently sits in the target grid. The actual
+    /// occupied cells are anchor + each cell of rotatedFootprint.
+    /// 
+    /// Keeping the anchor fixed while only rotatedFootprint changes is what
+    /// allows the block to "rotate in place" around a stable grid position,
+    /// for any footprint shape (rectangular or not).
+    /// </summary>
     private struct SnapCandidate
     {
         public LegoSocket socket;
         public Vector3 worldPosition;
         public Quaternion worldRotation;
         public float distance;
-        public int startX;
-        public int startZ;
-        public int effectiveWidth;
-        public int effectiveLength;
+        public int anchorGridX;
+        public int anchorGridZ;
+        public List<Vector2Int> rotatedFootprint;
         public LegoBlockSocketSpawner parentGrid;
     }
 
@@ -269,38 +295,24 @@ public class LegoBlockGhostManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Rotates the preview around the same physical underside stud and the same
-    /// target socket. This is the key difference from the normal snap search:
-    /// pressing O must not choose a new nearest anchor. It must only advance the
-    /// yaw by exactly 90 degrees and make that visible at the current socket.
+    /// Rotates the preview around the same fixed footprint anchor grid cell and
+    /// the same target socket area. The anchor (block's local origin stud) stays
+    /// pinned to the same grid position; only the rotated footprint around it
+    /// changes. This works for any footprint shape, not just rectangles.
     /// </summary>
-    private void RotateAroundLockedPhysicalAnchor()
+    private void RotateActiveCandidateInPlace()
     {
         ApplyHeldRootRotation();
 
-        LegoSocket socketToKeep = TargetSocket;
-
-        if (socketToKeep == null && hasActiveCandidate && activeCandidate.socket != null)
-            socketToKeep = activeCandidate.socket;
-
-        if (socketToKeep == null)
+        if (!hasActiveCandidate || activeCandidate.socket == null)
         {
             RebuildGhostIfLocked();
             return;
         }
 
-        // Important:
-        // Do NOT keep the same physical underside stud here.
-        // Keeping the same middle stud on a 1x3 (or similar block) can only show
-        // two visible positions because 0/180 and 90/270 overlap visually.
-        // Instead, O cycles the block around the same socket in four visible
-        // orbit positions: +Z, +X, -Z, -X in the socket grid.
-        if (!hasVisibleOrbitStep && hasActiveCandidate && activeCandidate.socket != null)
-            LockVisibleOrbitStepFromCandidate(activeCandidate);
+        SnapCandidate rotatedCandidate = RefreshCandidate(activeCandidate);
 
-        SnapCandidate rotatedCandidate = FindFourWayOrbitCandidateForSocket(socketToKeep, visibleOrbitStep);
-
-        if (rotatedCandidate.socket == null || !IsCandidateValidForPreview(rotatedCandidate))
+        if (rotatedCandidate.socket == null)
         {
             RebuildGhostIfLocked();
             return;
@@ -313,6 +325,9 @@ public class LegoBlockGhostManager : MonoBehaviour
         rotationAnchorLockActive = true;
         rotationAnchorLockHandPosition = transform.position;
 
+        // RebuildGhostForCandidate shows a valid (blue) or invalid (red) ghost
+        // depending on whether the rotated footprint still fits, instead of
+        // silently discarding the preview.
         RebuildGhostForCandidate(rotatedCandidate);
     }
 
@@ -366,7 +381,6 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         ClearTargetAndGhost();
         lastBuiltYaw = -999f;
-        rotationLockGraceFrame = false;
     }
 
     // -------------------------------------------------------------------------
@@ -392,7 +406,7 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         // Important fix:
         // Do not stay hard-locked to one socket. Every frame we evaluate all
-        // possible sockets and all possible underside anchor positions of the
+        // possible sockets and all possible footprint anchor positions of the
         // held block. This makes 1x1 top sockets and middle studs of long
         // blocks much easier to hit.
         UpdateBestSnapCandidate();
@@ -411,26 +425,12 @@ public class LegoBlockGhostManager : MonoBehaviour
         int step = pendingRotationSteps;
         pendingRotationSteps = 0;
 
-        // Initialize the visible orbit from the position that is currently shown.
-        // Without this, the orbit direction is tied to absolute yaw and can jump
-        // back to an earlier visible position at the beginning of rotation.
-        if (!hasVisibleOrbitStep && hasActiveCandidate && activeCandidate.socket != null)
-            LockVisibleOrbitStepFromCandidate(activeCandidate);
-
-        if (!hasVisibleOrbitStep)
-            visibleOrbitStep = GetYawStep(CurrentYawOffset);
-
-        visibleOrbitStep = WrapStep(visibleOrbitStep + step);
-        hasVisibleOrbitStep = true;
-
         CurrentYawOffset = (CurrentYawOffset + step * 90f) % 360f;
 
         if (CurrentYawOffset < 0f)
             CurrentYawOffset += 360f;
 
-        rotationLockGraceFrame = true;
-
-        RotateAroundLockedPhysicalAnchor();
+        RotateActiveCandidateInPlace();
     }
 
     /// <summary>
@@ -438,13 +438,7 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private void BeginHold()
     {
-        lastValidPosition = transform.position;
-        lastValidRotation = transform.rotation;
-        hasLastValidPose = true;
-
         pendingRotationSteps = 0;
-        hasVisibleOrbitStep = false;
-        visibleOrbitStep = 0;
         CurrentYawOffset = 0f;
 
         // Beim Aufheben wird der Block wieder gerade gemacht.
@@ -478,7 +472,7 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private void UpdateBestSnapCandidate()
     {
-        // After pressing O, keep the same socket/orbit candidate active until
+        // After pressing O, keep the same socket/anchor candidate active until
         // the user actually moves the hand away. Without this, the every-frame
         // search may choose a different anchor based on hand position, making
         // rotation work only from certain holding positions.
@@ -488,9 +482,6 @@ public class LegoBlockGhostManager : MonoBehaviour
 
             if (handMoveDistance <= rotationAnchorUnlockDistance)
             {
-                // Keep the exact orbit candidate chosen by the O-press.
-                // Do not re-search by hand distance while the hand has not moved,
-                // otherwise the system falls back into the old two-position behavior.
                 SnapCandidate lockedCandidate = RefreshCandidate(activeCandidate);
 
                 if (lockedCandidate.socket != null && IsCandidateValidForPreview(lockedCandidate))
@@ -548,8 +539,6 @@ public class LegoBlockGhostManager : MonoBehaviour
         activeCandidate = bestCandidate;
         hasActiveCandidate = true;
         TargetSocket = bestCandidate.socket;
-        LockPhysicalAnchorFromCandidate(bestCandidate);
-        LockVisibleOrbitStepFromCandidate(bestCandidate);
 
         RebuildGhostForCandidate(bestCandidate);
     }
@@ -567,20 +556,11 @@ public class LegoBlockGhostManager : MonoBehaviour
         HideGhost();
 
         if (hasActiveCandidate && activeCandidate.socket != null && currentPlacementValid)
-        {
             TrySnapToCandidate(activeCandidate);
-        }
         else if (TargetSocket != null && currentPlacementValid)
-        {
             TrySnapToTarget();
-        }
         else
-        {
-            if (requireGridPlacement)
-                RejectInvalidGridPlacement();
-            else
-                FallbackRelease();
-        }
+            FallbackRelease();
 
         DisableAllSocketInteractors(false);
         ClearTemporaryStabilization();
@@ -590,37 +570,27 @@ public class LegoBlockGhostManager : MonoBehaviour
         pendingRotationSteps = 0;
         hasActiveCandidate = false;
         activeCandidate = new SnapCandidate();
-        hasLockedPhysicalAnchor = false;
-        hasVisibleOrbitStep = false;
-        visibleOrbitStep = 0;
         rotationAnchorLockActive = false;
         lastBuiltYaw = -999f;
-        rotationLockGraceFrame = false;
     }
 
     /// <summary>
     /// Attempts to snap the block to the exact candidate that was previewed.
-    /// This preserves which underside stud of the held block was chosen.
+    /// This preserves which footprint anchor of the held block was chosen.
     /// </summary>
     private void TrySnapToCandidate(SnapCandidate finalCandidate)
     {
+        List<Vector2Int> cells = GetAbsoluteCells(finalCandidate);
+
         bool canPlace =
             finalCandidate.socket != null &&
             finalCandidate.parentGrid != null &&
-            finalCandidate.parentGrid.IsAreaClear(
-                finalCandidate.startX,
-                finalCandidate.startZ,
-                finalCandidate.effectiveWidth,
-                finalCandidate.effectiveLength
-            );
+            finalCandidate.parentGrid.IsFootprintAreaClear(cells) &&
+            !CandidateWouldIntersectOtherBlocks(finalCandidate);
 
         if (!canPlace)
         {
-            if (requireGridPlacement)
-                RejectInvalidGridPlacement();
-            else
-                FallbackRelease();
-
+            FallbackRelease();
             return;
         }
 
@@ -633,16 +603,10 @@ public class LegoBlockGhostManager : MonoBehaviour
         heldBaseRotation = transform.rotation;
 
         currentSocket = finalCandidate.socket;
+        block.SnappedSocket = currentSocket;
 
         currentOccupiedSockets.Clear();
-        currentOccupiedSockets.AddRange(
-            finalCandidate.parentGrid.GetSocketsInArea(
-                finalCandidate.startX,
-                finalCandidate.startZ,
-                finalCandidate.effectiveWidth,
-                finalCandidate.effectiveLength
-            )
-        );
+        currentOccupiedSockets.AddRange(finalCandidate.parentGrid.GetSocketsInFootprint(cells));
 
         MarkSocketsOccupied(currentOccupiedSockets, true);
 
@@ -661,8 +625,6 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
-        currentSocket = finalCandidate.socket;
-        block.SnappedSocket = currentSocket;
     }
 
     /// <summary>
@@ -671,24 +633,17 @@ public class LegoBlockGhostManager : MonoBehaviour
     private void TrySnapToTarget()
     {
         SnapCandidate finalCandidate = ComputeCandidateForLockedSocket(TargetSocket);
+        List<Vector2Int> cells = GetAbsoluteCells(finalCandidate);
 
         bool canPlace =
             finalCandidate.socket != null &&
             finalCandidate.parentGrid != null &&
-            finalCandidate.parentGrid.IsAreaClear(
-                finalCandidate.startX,
-                finalCandidate.startZ,
-                finalCandidate.effectiveWidth,
-                finalCandidate.effectiveLength
-            );
+            finalCandidate.parentGrid.IsFootprintAreaClear(cells) &&
+            !CandidateWouldIntersectOtherBlocks(finalCandidate);
 
         if (!canPlace)
         {
-            if (requireGridPlacement)
-                RejectInvalidGridPlacement();
-            else
-                FallbackRelease();
-
+            FallbackRelease();
             return;
         }
 
@@ -701,16 +656,10 @@ public class LegoBlockGhostManager : MonoBehaviour
         heldBaseRotation = transform.rotation;
 
         currentSocket = finalCandidate.socket;
+        block.SnappedSocket = currentSocket;
 
         currentOccupiedSockets.Clear();
-        currentOccupiedSockets.AddRange(
-            finalCandidate.parentGrid.GetSocketsInArea(
-                finalCandidate.startX,
-                finalCandidate.startZ,
-                finalCandidate.effectiveWidth,
-                finalCandidate.effectiveLength
-            )
-        );
+        currentOccupiedSockets.AddRange(finalCandidate.parentGrid.GetSocketsInFootprint(cells));
 
         MarkSocketsOccupied(currentOccupiedSockets, true);
 
@@ -729,41 +678,6 @@ public class LegoBlockGhostManager : MonoBehaviour
             parentBlock.AddAttachedBlockAbove();
 
         OnSnapped();
-        currentSocket = finalCandidate.socket;
-        block.SnappedSocket = currentSocket;
-    }
-
-    /// <summary>
-    /// Rejects a release that is not on a valid LEGO grid position.
-    /// The block does not fall freely onto the floor/table.
-    /// </summary>
-    private void RejectInvalidGridPlacement()
-    {
-        HideGhost();
-        ClearTemporaryStabilization();
-
-        ResetVisualRoot();
-        CurrentYawOffset = 0f;
-
-        if (returnToLastPositionWhenInvalid && hasLastValidPose)
-        {
-            transform.position = lastValidPosition;
-            transform.rotation = lastValidRotation;
-        }
-
-        heldBaseRotation = transform.rotation;
-
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            rb.isKinematic = true;
-            rb.detectCollisions = true;
-            rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
-        }
-
-        // Mark the block stable again, because it has been returned instead of dropped.
-        block.SetSnappedToSocket(hasLastValidPose);
     }
 
     /// <summary>
@@ -774,6 +688,7 @@ public class LegoBlockGhostManager : MonoBehaviour
         HideGhost();
 
         block.SetSnappedToSocket(false);
+        block.SnappedSocket = null;
 
         ResetVisualRoot();
         CurrentYawOffset = 0f;
@@ -834,20 +749,10 @@ public class LegoBlockGhostManager : MonoBehaviour
             return;
 
         SnapCandidate candidate = ComputeCandidateForLockedSocket(socket);
+        List<Vector2Int> cells = GetAbsoluteCells(candidate);
 
-        bool coversInnerSocket = socket.parentGrid.DoesRotatedBlockCoverInnerSocket(
-            candidate.startX,
-            candidate.startZ,
-            block,
-            CurrentYawOffset
-        );
-
-        bool areaClear = candidate.parentGrid.IsAreaClear(
-            candidate.startX,
-            candidate.startZ,
-            candidate.effectiveWidth,
-            candidate.effectiveLength
-        );
+        bool coversInnerSocket = candidate.parentGrid.DoesFootprintCoverInnerSocket(cells);
+        bool areaClear = candidate.parentGrid.IsFootprintAreaClear(cells);
 
         bool isValid = coversInnerSocket && areaClear;
 
@@ -876,7 +781,6 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         ghostRoot = new GameObject("SnapGhost");
         ghostRoot.transform.SetPositionAndRotation(position, rotation);
-        ghostRoot.transform.localScale = transform.localScale;
 
         foreach (MeshSnapshot snapshot in meshSnapshots)
         {
@@ -891,7 +795,21 @@ public class LegoBlockGhostManager : MonoBehaviour
             meshFilter.sharedMesh = snapshot.mesh;
 
             MeshRenderer meshRenderer = part.AddComponent<MeshRenderer>();
-            meshRenderer.material = ghostMaterial;
+
+            int materialCount = 1;
+
+            if (snapshot.originalRenderer != null &&
+                snapshot.originalRenderer.sharedMaterials != null)
+            {
+                materialCount = Mathf.Max(1, snapshot.originalRenderer.sharedMaterials.Length);
+            }
+
+            Material[] ghostMaterials = new Material[materialCount];
+
+            for (int i = 0; i < ghostMaterials.Length; i++)
+                ghostMaterials[i] = ghostMaterial;
+
+            meshRenderer.sharedMaterials = ghostMaterials;
             meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             meshRenderer.receiveShadows = false;
         }
@@ -941,48 +859,36 @@ public class LegoBlockGhostManager : MonoBehaviour
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Calculates the final block position and rotation for a locked socket.
+    /// Returns the absolute grid cells (footprint anchor + each rotated footprint cell)
+    /// occupied by the given candidate.
     /// </summary>
-    private SnapCandidate ComputeCandidateForLockedSocket(LegoSocket socket)
+    private List<Vector2Int> GetAbsoluteCells(SnapCandidate candidate)
     {
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+        return GetAbsoluteCells(candidate.anchorGridX, candidate.anchorGridZ, candidate.rotatedFootprint);
+    }
 
-        int step = Mathf.RoundToInt(CurrentYawOffset / 90f) % 4;
+    private List<Vector2Int> GetAbsoluteCells(int anchorGridX, int anchorGridZ, List<Vector2Int> rotatedFootprint)
+    {
+        List<Vector2Int> cells = new List<Vector2Int>(rotatedFootprint.Count);
 
-        if (step < 0)
-            step += 4;
-
-        int startX;
-        int startZ;
-
-        switch (step)
+        for (int i = 0; i < rotatedFootprint.Count; i++)
         {
-            case 1:
-                startX = socket.gridX;
-                startZ = socket.gridZ - (effectiveLength - 1);
-                break;
-
-            case 2:
-                startX = socket.gridX - (effectiveWidth - 1);
-                startZ = socket.gridZ - (effectiveLength - 1);
-                break;
-
-            case 3:
-                startX = socket.gridX - (effectiveWidth - 1);
-                startZ = socket.gridZ;
-                break;
-
-            default:
-                startX = socket.gridX;
-                startZ = socket.gridZ;
-                break;
+            Vector2Int cell = rotatedFootprint[i];
+            cells.Add(new Vector2Int(anchorGridX + cell.x, anchorGridZ + cell.y));
         }
 
-        Vector3 worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
-            startX,
-            startZ,
-            block,
-            CurrentYawOffset
+        return cells;
+    }
+
+    /// <summary>
+    /// Builds a candidate from a known footprint anchor grid position and the
+    /// given (already rotated) footprint cells.
+    /// </summary>
+    private SnapCandidate BuildCandidateFromAnchor(LegoSocket socket, int anchorGridX, int anchorGridZ, List<Vector2Int> rotatedFootprint)
+    {
+        Vector3 worldPosition = socket.parentGrid.GetFootprintCenterWorldPosition(
+            GetAbsoluteCells(anchorGridX, anchorGridZ, rotatedFootprint),
+            block.GetWorldHeight()
         );
 
         Quaternion worldRotation =
@@ -994,321 +900,52 @@ public class LegoBlockGhostManager : MonoBehaviour
             socket = socket,
             worldPosition = worldPosition,
             worldRotation = worldRotation,
-            startX = startX,
-            startZ = startZ,
-            effectiveWidth = effectiveWidth,
-            effectiveLength = effectiveLength,
+            anchorGridX = anchorGridX,
+            anchorGridZ = anchorGridZ,
+            rotatedFootprint = rotatedFootprint,
             parentGrid = socket.parentGrid
         };
     }
 
     /// <summary>
-    /// Recalculates world position, rotation, dimensions, and distance for a stored candidate.
+    /// Calculates the final block position and rotation for a locked socket,
+    /// assuming the block's footprint anchor (local cell 0,0) sits on this socket.
+    /// </summary>
+    private SnapCandidate ComputeCandidateForLockedSocket(LegoSocket socket)
+    {
+        int yawStep = GetYawStep(CurrentYawOffset);
+        List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
+
+        return BuildCandidateFromAnchor(socket, socket.gridX, socket.gridZ, rotatedFootprint);
+    }
+
+    /// <summary>
+    /// Recalculates world position, rotation, footprint, and distance for a stored
+    /// candidate at the current yaw, while keeping its footprint anchor grid
+    /// position fixed. This is what makes rotation happen "in place".
     /// </summary>
     private SnapCandidate RefreshCandidate(SnapCandidate candidate)
     {
         if (candidate.socket == null || candidate.parentGrid == null)
             return new SnapCandidate { socket = null, distance = float.MaxValue };
 
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+        int yawStep = GetYawStep(CurrentYawOffset);
+        List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
 
-        candidate.effectiveWidth = effectiveWidth;
-        candidate.effectiveLength = effectiveLength;
-        candidate.worldPosition = candidate.parentGrid.GetBlockCenterWorldPositionRotated(
-            candidate.startX,
-            candidate.startZ,
-            block,
-            CurrentYawOffset
+        candidate.rotatedFootprint = rotatedFootprint;
+
+        candidate.worldPosition = candidate.parentGrid.GetFootprintCenterWorldPosition(
+            GetAbsoluteCells(candidate.anchorGridX, candidate.anchorGridZ, rotatedFootprint),
+            block.GetWorldHeight()
         );
+
         candidate.worldRotation =
             candidate.socket.GetBaseRotation() *
             Quaternion.Euler(0f, CurrentYawOffset, 0f);
+
         candidate.distance = MeasureCandidateDistance(candidate);
 
         return candidate;
-    }
-
-    /// <summary>
-    /// Chooses one of the possible anchor positions on the same socket so that
-    /// repeated O presses produce four visible positions around that socket.
-    ///
-    /// This intentionally does not choose the candidate closest to the hand.
-    /// It chooses the candidate whose block center is furthest in the desired
-    /// orbit direction for the current yaw step:
-    /// 0 = +Z, 1 = +X, 2 = -Z, 3 = -X in the socket grid.
-    /// </summary>
-    private SnapCandidate FindFourWayOrbitCandidateForSocket(LegoSocket socket, int orbitStep)
-    {
-        if (socket == null || socket.parentGrid == null)
-            return new SnapCandidate { socket = null, distance = float.MaxValue };
-
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
-
-        Vector2 desiredDirection = GetOrbitDirectionForStep(orbitStep);
-
-        SnapCandidate best = new SnapCandidate
-        {
-            socket = null,
-            distance = float.MaxValue
-        };
-
-        float bestScore = float.NegativeInfinity;
-
-        for (int dx = 0; dx < effectiveWidth; dx++)
-        {
-            for (int dz = 0; dz < effectiveLength; dz++)
-            {
-                int startX = socket.gridX - dx;
-                int startZ = socket.gridZ - dz;
-
-                SnapCandidate candidate = new SnapCandidate
-                {
-                    socket = socket,
-                    startX = startX,
-                    startZ = startZ,
-                    effectiveWidth = effectiveWidth,
-                    effectiveLength = effectiveLength,
-                    parentGrid = socket.parentGrid,
-                    worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
-                        startX,
-                        startZ,
-                        block,
-                        CurrentYawOffset
-                    ),
-                    worldRotation =
-                        socket.GetBaseRotation() *
-                        Quaternion.Euler(0f, CurrentYawOffset, 0f)
-                };
-
-                // Important:
-                // During O-rotation we must NOT judge the orbit candidate by the
-                // current hand position. The user may be holding the block above
-                // the socket from any side. If we call MeasureCandidateDistance()
-                // here, some of the four orbit positions get rejected or scored
-                // badly depending on hand position, which recreates the old
-                // "only works from one holding position" behavior.
-                candidate.distance = 0f;
-
-                if (!IsCandidateValidForPreview(candidate))
-                    continue;
-
-                Vector3 worldOffset = candidate.worldPosition - socket.transform.position;
-                Vector3 localOffset = socket.parentGrid.transform.InverseTransformVector(worldOffset);
-                Vector2 localOffset2D = new Vector2(localOffset.x, localOffset.z);
-
-                // Prefer the candidate that lies furthest in the current orbit direction.
-                // No hand-distance tie-breaker here: O should cycle visible positions,
-                // not choose the position nearest to the hand.
-                float score = Vector2.Dot(localOffset2D, desiredDirection);
-
-                if (score <= bestScore)
-                    continue;
-
-                bestScore = score;
-                best = candidate;
-            }
-        }
-
-        return best;
-    }
-
-    /// <summary>
-    /// Returns the desired visible orbit direction for a visible orbit step.
-    /// This is intentionally independent from CurrentYawOffset.
-    /// CurrentYawOffset controls mesh rotation; visibleOrbitStep controls which
-    /// side of the socket the block occupies.
-    /// </summary>
-    private Vector2 GetOrbitDirectionForStep(int step)
-    {
-        step = WrapStep(step);
-
-        switch (step)
-        {
-            case 1:
-                return Vector2.right;
-            case 2:
-                return Vector2.down;
-            case 3:
-                return Vector2.left;
-            default:
-                return Vector2.up;
-        }
-    }
-
-    /// <summary>
-    /// Stores which visible side of the target socket the current candidate uses.
-    /// On the next O press, rotation advances from this exact visible position,
-    /// instead of being guessed from absolute yaw.
-    /// </summary>
-    private void LockVisibleOrbitStepFromCandidate(SnapCandidate candidate)
-    {
-        if (candidate.socket == null || candidate.parentGrid == null)
-            return;
-
-        Vector3 worldOffset = candidate.worldPosition - candidate.socket.transform.position;
-        Vector3 localOffset = candidate.parentGrid.transform.InverseTransformVector(worldOffset);
-        Vector2 offset = new Vector2(localOffset.x, localOffset.z);
-
-        Vector2[] directions = new Vector2[]
-        {
-            Vector2.up,
-            Vector2.right,
-            Vector2.down,
-            Vector2.left
-        };
-
-        int bestStep = 0;
-        float bestScore = float.NegativeInfinity;
-
-        for (int i = 0; i < directions.Length; i++)
-        {
-            float score = Vector2.Dot(offset, directions[i]);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestStep = i;
-            }
-        }
-
-        visibleOrbitStep = bestStep;
-        hasVisibleOrbitStep = true;
-    }
-
-    private int WrapStep(int step)
-    {
-        step %= 4;
-
-        if (step < 0)
-            step += 4;
-
-        return step;
-    }
-
-    /// <summary>
-    /// Stores which physical underside stud of the held block is currently being
-    /// placed on the target socket. The stored coordinates are in the block's
-    /// original width/length grid, not the currently rotated effective grid.
-    /// </summary>
-    private void LockPhysicalAnchorFromCandidate(SnapCandidate candidate)
-    {
-        if (candidate.socket == null)
-            return;
-
-        int anchorEffectiveX = candidate.socket.gridX - candidate.startX;
-        int anchorEffectiveZ = candidate.socket.gridZ - candidate.startZ;
-
-        Vector2Int originalAnchor = EffectiveAnchorToOriginalAnchor(
-            anchorEffectiveX,
-            anchorEffectiveZ,
-            CurrentYawOffset
-        );
-
-        lockedAnchorLocalX = Mathf.Clamp(originalAnchor.x, 0, block.width - 1);
-        lockedAnchorLocalZ = Mathf.Clamp(originalAnchor.y, 0, block.length - 1);
-        hasLockedPhysicalAnchor = true;
-    }
-
-    /// <summary>
-    /// Builds a candidate where the stored physical underside stud remains on the
-    /// given socket after the current yaw rotation.
-    /// </summary>
-    private SnapCandidate BuildCandidateFromLockedPhysicalAnchor(LegoSocket socket)
-    {
-        if (socket == null || socket.parentGrid == null || !hasLockedPhysicalAnchor)
-            return new SnapCandidate { socket = null, distance = float.MaxValue };
-
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
-
-        Vector2Int effectiveAnchor = OriginalAnchorToEffectiveAnchor(
-            lockedAnchorLocalX,
-            lockedAnchorLocalZ,
-            CurrentYawOffset
-        );
-
-        effectiveAnchor.x = Mathf.Clamp(effectiveAnchor.x, 0, effectiveWidth - 1);
-        effectiveAnchor.y = Mathf.Clamp(effectiveAnchor.y, 0, effectiveLength - 1);
-
-        int startX = socket.gridX - effectiveAnchor.x;
-        int startZ = socket.gridZ - effectiveAnchor.y;
-
-        Vector3 worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
-            startX,
-            startZ,
-            block,
-            CurrentYawOffset
-        );
-
-        Quaternion worldRotation =
-            socket.GetBaseRotation() *
-            Quaternion.Euler(0f, CurrentYawOffset, 0f);
-
-        SnapCandidate candidate = new SnapCandidate
-        {
-            socket = socket,
-            worldPosition = worldPosition,
-            worldRotation = worldRotation,
-            startX = startX,
-            startZ = startZ,
-            effectiveWidth = effectiveWidth,
-            effectiveLength = effectiveLength,
-            parentGrid = socket.parentGrid
-        };
-
-        candidate.distance = MeasureCandidateDistance(candidate);
-        return candidate;
-    }
-
-    /// <summary>
-    /// Converts a stored original block stud coordinate into the currently
-    /// rotated effective grid coordinate.
-    /// </summary>
-    private Vector2Int OriginalAnchorToEffectiveAnchor(int originalX, int originalZ, float yawOffset)
-    {
-        int step = GetYawStep(yawOffset);
-        int width = block.width;
-        int length = block.length;
-
-        switch (step)
-        {
-            case 1:
-                return new Vector2Int(originalZ, width - 1 - originalX);
-
-            case 2:
-                return new Vector2Int(width - 1 - originalX, length - 1 - originalZ);
-
-            case 3:
-                return new Vector2Int(length - 1 - originalZ, originalX);
-
-            default:
-                return new Vector2Int(originalX, originalZ);
-        }
-    }
-
-    /// <summary>
-    /// Converts a rotated effective grid coordinate back to the block's original
-    /// local stud coordinate.
-    /// </summary>
-    private Vector2Int EffectiveAnchorToOriginalAnchor(int effectiveX, int effectiveZ, float yawOffset)
-    {
-        int step = GetYawStep(yawOffset);
-        int width = block.width;
-        int length = block.length;
-
-        switch (step)
-        {
-            case 1:
-                return new Vector2Int(width - 1 - effectiveZ, effectiveX);
-
-            case 2:
-                return new Vector2Int(width - 1 - effectiveX, length - 1 - effectiveZ);
-
-            case 3:
-                return new Vector2Int(effectiveZ, length - 1 - effectiveX);
-
-            default:
-                return new Vector2Int(effectiveX, effectiveZ);
-        }
     }
 
     /// <summary>
@@ -1335,21 +972,156 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (!IsSocketUsableForInitialSearch(candidate.socket))
             return false;
 
-        bool coversInnerSocket = candidate.parentGrid.DoesRotatedBlockCoverInnerSocket(
-            candidate.startX,
-            candidate.startZ,
-            block,
-            CurrentYawOffset
-        );
+        List<Vector2Int> cells = GetAbsoluteCells(candidate);
 
-        if (!coversInnerSocket)
+        if (!candidate.parentGrid.DoesFootprintCoverInnerSocket(cells))
             return false;
 
-        return candidate.parentGrid.IsAreaClear(
-            candidate.startX,
-            candidate.startZ,
-            candidate.effectiveWidth,
-            candidate.effectiveLength
+        if (!candidate.parentGrid.IsFootprintAreaClear(cells))
+            return false;
+
+        if (CandidateWouldIntersectOtherBlocks(candidate))
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns true if the candidate would physically overlap another placed LegoBlock.
+    /// The socket-grid check only knows about sockets inside one grid. This extra
+    /// physics check prevents long/flat blocks from visually cutting through
+    /// neighboring or stacked blocks that belong to another grid.
+    /// </summary>
+    private bool CandidateWouldIntersectOtherBlocks(SnapCandidate candidate)
+    {
+        if (!preventGhostIntersectingBlocks)
+            return false;
+
+        if (candidate.parentGrid == null || block == null)
+            return false;
+
+        Vector3 halfExtents = GetCandidateCollisionHalfExtents(candidate);
+
+        if (halfExtents.x <= 0f || halfExtents.y <= 0f || halfExtents.z <= 0f)
+            return false;
+
+        Collider[] hits = Physics.OverlapBox(
+            candidate.worldPosition,
+            halfExtents,
+            candidate.worldRotation,
+            blockCollisionMask,
+            QueryTriggerInteraction.Ignore
+        );
+
+        List<LegoBlock> allowedSupportBlocks = GetAllowedSupportChainBlocks(candidate);
+
+        float candidateBottom = candidate.worldPosition.y - halfExtents.y;
+        float candidateTop = candidate.worldPosition.y + halfExtents.y;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hit = hits[i];
+
+            if (hit == null || hit.isTrigger)
+                continue;
+
+            LegoBlock otherBlock = hit.GetComponentInParent<LegoBlock>();
+
+            if (otherBlock == null)
+                continue;
+
+            // Ignore the held block's own colliders.
+            if (otherBlock == block)
+                continue;
+
+            // The block we are snapping onto and every block below it in the
+            // snapped support chain are allowed. This is important for:
+            // bottom block -> plate -> new block.
+            // Without this, the bottom block can be detected as a false collision
+            // when placing onto the plate.
+            if (allowedSupportBlocks.Contains(otherBlock))
+                continue;
+
+            Bounds otherBounds = hit.bounds;
+
+            bool clearlyBelow = otherBounds.max.y <= candidateBottom + verticalTouchTolerance;
+            bool clearlyAbove = otherBounds.min.y >= candidateTop - verticalTouchTolerance;
+
+            if (clearlyBelow || clearlyAbove)
+                continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the direct support block plus every block below it.
+    /// Example: placing on a plate that is snapped onto a normal block returns:
+    /// plate + normal block. This prevents the lower block from falsely blocking
+    /// placement on the plate.
+    /// </summary>
+    private List<LegoBlock> GetAllowedSupportChainBlocks(SnapCandidate candidate)
+    {
+        List<LegoBlock> result = new List<LegoBlock>();
+
+        LegoBlock supportBlock = candidate.socket != null
+            ? candidate.socket.GetComponentInParent<LegoBlock>()
+            : null;
+
+        AddSupportChain(result, supportBlock);
+
+        return result;
+    }
+
+    private void AddSupportChain(List<LegoBlock> result, LegoBlock startBlock)
+    {
+        LegoBlock current = startBlock;
+        int safety = 0;
+
+        while (current != null && safety < 16)
+        {
+            if (!result.Contains(current))
+                result.Add(current);
+
+            LegoSocket snappedSocket = current.SnappedSocket;
+
+            if (snappedSocket == null)
+                break;
+
+            LegoBlock next = snappedSocket.GetComponentInParent<LegoBlock>();
+
+            if (next == null || next == current)
+                break;
+
+            current = next;
+            safety++;
+        }
+    }
+
+    /// <summary>
+    /// Builds a conservative box from the rotated stud footprint.
+    /// It is intentionally a little smaller than the visual block so face-to-face
+    /// contact is allowed, while real intersections are rejected.
+    /// </summary>
+    private Vector3 GetCandidateCollisionHalfExtents(SnapCandidate candidate)
+    {
+        RectInt bounds = block.GetFootprintBounds(candidate.rotatedFootprint);
+
+        float scaleX = candidate.parentGrid.transform.lossyScale.x;
+        float scaleZ = candidate.parentGrid.transform.lossyScale.z;
+
+        float width = bounds.width * candidate.parentGrid.studSpacingX * Mathf.Abs(scaleX);
+        float depth = bounds.height * candidate.parentGrid.studSpacingZ * Mathf.Abs(scaleZ);
+        float height = block.GetWorldHeight();
+
+        float shrink = Mathf.Max(0f, collisionCheckShrink);
+
+        return new Vector3(
+            Mathf.Max(0.01f, width * 0.5f - shrink),
+            Mathf.Max(0.01f, height * 0.5f - shrink),
+            Mathf.Max(0.01f, depth * 0.5f - shrink)
         );
     }
 
@@ -1374,14 +1146,21 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     /// <summary>
     /// Finds the best nearby socket candidate for the currently held block.
+    /// Tries every stud of the block's (rotated) footprint as the one that could
+    /// land on each candidate socket, so any footprint shape - rectangular or
+    /// not - can use any of its own studs as the anchor.
     /// Returns valid candidates first; falls back to the nearest invalid candidate
     /// so a red ghost can still be shown when placement is blocked.
     /// </summary>
     private SnapCandidate FindInitialSnapCandidate()
     {
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, CurrentYawOffset);
+        int yawStep = GetYawStep(CurrentYawOffset);
+        List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
 
-        LegoSocket[] allSockets = FindObjectsOfType<LegoSocket>();
+        LegoSocket[] allSockets = GetCandidateSocketsFromTargetSurface();
+
+        if (allSockets == null || allSockets.Length == 0)
+            return new SnapCandidate { socket = null, distance = float.MaxValue };
 
         SnapCandidate bestValid = new SnapCandidate { socket = null, distance = float.MaxValue };
         SnapCandidate bestInvalid = new SnapCandidate { socket = null, distance = float.MaxValue };
@@ -1391,54 +1170,35 @@ public class LegoBlockGhostManager : MonoBehaviour
             if (!IsSocketUsableForInvalidSearch(socket))
                 continue;
 
-            // Try every possible underside stud/anchor of the held block.
-            // This is the important part for 1x1 blocks and middle studs:
-            // A 1x4 can now place its left, middle, or right underside stud
-            // onto the same target socket.
-            for (int dx = 0; dx < effectiveWidth; dx++)
+            // Try every physical stud of the held block's footprint as the one
+            // that lands on this socket. This is the important part for 1x1
+            // blocks and middle/side studs of irregular shapes: an L-block can
+            // land any of its three studs on the same target socket.
+            for (int i = 0; i < rotatedFootprint.Count; i++)
             {
-                for (int dz = 0; dz < effectiveLength; dz++)
+                Vector2Int pivotCell = rotatedFootprint[i];
+
+                int anchorGridX = socket.gridX - pivotCell.x;
+                int anchorGridZ = socket.gridZ - pivotCell.y;
+
+                SnapCandidate candidate = BuildCandidateFromAnchor(socket, anchorGridX, anchorGridZ, rotatedFootprint);
+                candidate.distance = MeasureCandidateDistance(candidate);
+
+                if (candidate.distance == float.MaxValue)
+                    continue;
+
+                if (candidate.distance > snapDistanceThreshold)
+                    continue;
+
+                if (IsCandidateValidForPreview(candidate))
                 {
-                    int startX = socket.gridX - dx;
-                    int startZ = socket.gridZ - dz;
-
-                    SnapCandidate candidate = new SnapCandidate
-                    {
-                        socket = socket,
-                        startX = startX,
-                        startZ = startZ,
-                        effectiveWidth = effectiveWidth,
-                        effectiveLength = effectiveLength,
-                        parentGrid = socket.parentGrid,
-                        worldPosition = socket.parentGrid.GetBlockCenterWorldPositionRotated(
-                            startX,
-                            startZ,
-                            block,
-                            CurrentYawOffset
-                        ),
-                        worldRotation =
-                            socket.GetBaseRotation() *
-                            Quaternion.Euler(0f, CurrentYawOffset, 0f)
-                    };
-
-                    candidate.distance = MeasureCandidateDistance(candidate);
-
-                    if (candidate.distance == float.MaxValue)
-                        continue;
-
-                    if (candidate.distance > snapDistanceThreshold)
-                        continue;
-
-                    if (IsCandidateValidForPreview(candidate))
-                    {
-                        if (candidate.distance < bestValid.distance)
-                            bestValid = candidate;
-                    }
-                    else
-                    {
-                        if (candidate.distance < bestInvalid.distance)
-                            bestInvalid = candidate;
-                    }
+                    if (IsBetterSnapCandidate(candidate, bestValid))
+                        bestValid = candidate;
+                }
+                else
+                {
+                    if (IsBetterSnapCandidate(candidate, bestInvalid))
+                        bestInvalid = candidate;
                 }
             }
         }
@@ -1448,6 +1208,53 @@ public class LegoBlockGhostManager : MonoBehaviour
             return bestValid;
 
         return bestInvalid;
+    }
+
+    /// <summary>
+    /// Chooses the better snap candidate.
+    ///
+    /// Important: the old version always preferred the higher candidate first.
+    /// That made top sockets on a nearby block steal the preview even when the
+    /// hand was trying to place a block on the floor socket directly beside it.
+    ///
+    /// New rule:
+    /// 1) The horizontally closest candidate wins.
+    /// 2) Only when two candidates are almost equally close, prefer the higher one.
+    ///
+    /// This keeps stacking working, but stops the ghost from skipping free floor
+    /// cells beside an existing block.
+    /// </summary>
+    private bool IsBetterSnapCandidate(SnapCandidate candidate, SnapCandidate currentBest)
+    {
+        if (candidate.socket == null)
+            return false;
+
+        if (currentBest.socket == null)
+            return true;
+
+        const float almostSameDistance = 0.12f;
+        const float heightPreferenceThreshold = 0.03f;
+
+        float distanceDelta = candidate.distance - currentBest.distance;
+
+        // If one candidate is clearly closer in X/Z, use that one.
+        // This is what makes the free floor socket right beside a block selectable.
+        if (distanceDelta < -almostSameDistance)
+            return true;
+
+        if (distanceDelta > almostSameDistance)
+            return false;
+
+        // If both are similarly close, prefer the higher socket.
+        // This still makes stacking on top of a block feel natural.
+        if (candidate.worldPosition.y > currentBest.worldPosition.y + heightPreferenceThreshold)
+            return true;
+
+        if (candidate.worldPosition.y < currentBest.worldPosition.y - heightPreferenceThreshold)
+            return false;
+
+        // Same distance and same height: choose the slightly closer one.
+        return candidate.distance < currentBest.distance;
     }
 
     /// <summary>
@@ -1461,6 +1268,14 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (socket.isOccupied) return false;
         if (socket.transform.IsChildOf(transform)) return false;
         if (socket.parentGrid == null) return false;
+
+        // Important:
+        // Floor/grid sockets can still exist under already placed blocks.
+        // If we allow those sockets, the ghost can appear inside/under a block
+        // and the held block can be placed on the invisible floor grid instead
+        // of on the visible block top sockets.
+        if (IsFloorSocketBlockedByPlacedBlockAbove(socket))
+            return false;
 
         // The block should approach the socket from above, but this must be
         // forgiving. On high stacks and small 1x1 blocks the hand/controller
@@ -1483,10 +1298,97 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (socket.transform.IsChildOf(transform)) return false;
         if (socket.parentGrid == null) return false;
 
+        // Important:
+        // Do not consider occupied sockets even for a red/invalid ghost.
+        // When a plate sits on another block, the lower block's top sockets
+        // are occupied by that plate. If those occupied sockets are allowed,
+        // the ghost can appear at the lower block level and look like it is
+        // ignoring the plate.
+        if (socket.isOccupied)
+            return false;
+
+        // Even for invalid/red preview we do not want to preview hidden floor
+        // sockets that are physically covered by an already placed block.
+        if (IsFloorSocketBlockedByPlacedBlockAbove(socket))
+            return false;
+
         if (transform.position.y < socket.transform.position.y - allowedBelowSocket)
             return false;
 
         return true;
+    }
+
+    /// <summary>
+    /// Returns true for independent floor/grid sockets that should be ignored
+    /// because they are under an already placed block.
+    ///
+    /// Important fix:
+    /// The previous version used a long upward raycast of 3 units. That can
+    /// accidentally hit slightly oversized block colliders beside the socket,
+    /// so free floor cells next to a placed block become unsnappable.
+    ///
+    /// Now the normal occupation state is the main blocker. This is the clean
+    /// logical LEGO-grid answer: when a block is placed on the floor grid, its
+    /// footprint sockets are marked occupied. Neighbor sockets stay free.
+    ///
+    /// The physical raycast is optional and short. Only enable it if you still
+    /// have hidden floor ghosts under blocks whose floor sockets are not being
+    /// marked occupied for some reason.
+    /// </summary>
+    private bool IsFloorSocketBlockedByPlacedBlockAbove(LegoSocket socket)
+    {
+        if (socket == null)
+            return false;
+
+        // If the socket belongs to a LEGO block, it is a top socket and should
+        // still be usable for stacking. This blocker is only for independent
+        // floor/grid sockets under blocks.
+        LegoBlock socketOwnerBlock = socket.GetComponentInParent<LegoBlock>();
+
+        if (socketOwnerBlock != null)
+            return false;
+
+        // Main rule: floor sockets that are already occupied by the logical
+        // grid cannot be used. This does not block free neighbor sockets.
+        if (socket.isOccupied)
+            return true;
+
+        // Usually keep this disabled. It is only a fallback for scenes where
+        // the floor grid's occupied state is not updated correctly.
+        if (!usePhysicalFloorSocketBlocker)
+            return false;
+
+        Vector3 origin = socket.transform.position + Vector3.up * floorSocketBlockerStartLift;
+        float checkDistance = Mathf.Max(0.01f, floorSocketBlockerRayDistance);
+
+        RaycastHit[] hits = Physics.RaycastAll(
+            origin,
+            Vector3.up,
+            checkDistance,
+            ~0,
+            QueryTriggerInteraction.Ignore
+        );
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hitCollider = hits[i].collider;
+
+            if (hitCollider == null)
+                continue;
+
+            LegoBlock hitBlock = hitCollider.GetComponentInParent<LegoBlock>();
+
+            if (hitBlock == null)
+                continue;
+
+            // Ignore the block currently being held.
+            if (hitBlock == block)
+                continue;
+
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1502,6 +1404,165 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         float releaseDistance = snapDistanceThreshold * releaseDistanceMultiplier;
         return horizontalDistance <= releaseDistance;
+    }
+
+    // -------------------------------------------------------------------------
+    // Surface Targeting
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns sockets from the single surface currently under the held block.
+    /// This is the main fix for plates/stacks:
+    /// first choose the top surface, then snap only to that surface's sockets.
+    /// </summary>
+    private LegoSocket[] GetCandidateSocketsFromTargetSurface()
+    {
+        if (!useSurfaceRaycastTargeting)
+            return FindObjectsOfType<LegoSocket>();
+
+        LegoBlockSocketSpawner targetGrid = FindTargetSurfaceGrid();
+
+        if (targetGrid == null)
+        {
+            if (debugSurfaceTargeting)
+                Debug.Log("[LEGO SURFACE TARGET] " + gameObject.name + " no target grid found, falling back to all sockets.");
+
+            return FindObjectsOfType<LegoSocket>();
+        }
+
+        if (debugSurfaceTargeting)
+        {
+            LegoBlock ownerBlock = targetGrid.GetComponentInParent<LegoBlock>();
+            Debug.Log(
+                "[LEGO SURFACE TARGET] " + gameObject.name +
+                " targetGrid=" + targetGrid.name +
+                " owner=" + (ownerBlock != null ? ownerBlock.name : "Floor/NoOwner")
+            );
+        }
+
+        return targetGrid.GetComponentsInChildren<LegoSocket>(true);
+    }
+
+    /// <summary>
+    /// Finds the top snap surface under the held block using several downward rays.
+    /// Multiple rays are used because large blocks may have their root/pivot away
+    /// from the stud currently over the target plate.
+    /// </summary>
+    private LegoBlockSocketSpawner FindTargetSurfaceGrid()
+    {
+        List<Vector3> rayOrigins = GetSurfaceRayOrigins();
+
+        RaycastHit? bestHit = null;
+
+        for (int i = 0; i < rayOrigins.Count; i++)
+        {
+            RaycastHit[] hits = Physics.RaycastAll(
+                rayOrigins[i],
+                Vector3.down,
+                Mathf.Max(0.1f, surfaceRayDistance),
+                surfaceRayMask,
+                QueryTriggerInteraction.Ignore
+            );
+
+            for (int h = 0; h < hits.Length; h++)
+            {
+                RaycastHit hit = hits[h];
+
+                if (hit.collider == null)
+                    continue;
+
+                LegoBlock hitBlock = hit.collider.GetComponentInParent<LegoBlock>();
+
+                // Ignore the block currently being held.
+                if (hitBlock == block)
+                    continue;
+
+                LegoBlockSocketSpawner grid = hit.collider.GetComponentInParent<LegoBlockSocketSpawner>();
+
+                if (grid == null && hitBlock != null)
+                    grid = hitBlock.GetComponentInChildren<LegoBlockSocketSpawner>(true);
+
+                if (grid == null)
+                    continue;
+
+                // Pick the highest surface hit, not the closest ray origin hit.
+                // This makes a plate sitting on a block beat the lower block/floor.
+                if (!bestHit.HasValue || hit.point.y > bestHit.Value.point.y)
+                    bestHit = hit;
+            }
+        }
+
+        if (!bestHit.HasValue)
+            return null;
+
+        Collider bestCollider = bestHit.Value.collider;
+        LegoBlock bestBlock = bestCollider.GetComponentInParent<LegoBlock>();
+        LegoBlockSocketSpawner bestGrid = bestCollider.GetComponentInParent<LegoBlockSocketSpawner>();
+
+        if (bestGrid == null && bestBlock != null)
+            bestGrid = bestBlock.GetComponentInChildren<LegoBlockSocketSpawner>(true);
+
+        return bestGrid;
+    }
+
+    /// <summary>
+    /// Builds ray origins over the held block root and over the approximate
+    /// footprint corners. This makes surface selection stable for large blocks.
+    /// </summary>
+    private List<Vector3> GetSurfaceRayOrigins()
+    {
+        List<Vector3> origins = new List<Vector3>();
+
+        float lift = Mathf.Max(0.05f, surfaceRayStartHeight);
+        Vector3 up = Vector3.up * lift;
+
+        origins.Add(transform.position + up);
+
+        int yawStep = GetYawStep(CurrentYawOffset);
+        List<Vector2Int> footprint = block.GetRotatedFootprint(yawStep);
+
+        if (footprint == null || footprint.Count == 0)
+            return origins;
+
+        RectInt bounds = block.GetFootprintBounds(footprint);
+
+        // Use current block dimensions as an approximate search footprint.
+        // The exact snap still uses the socket grid afterwards.
+        float studX = 0.5f;
+        float studZ = 0.5f;
+
+        LegoBlockSocketSpawner anyGrid = FindObjectOfType<LegoBlockSocketSpawner>();
+        if (anyGrid != null)
+        {
+            studX = anyGrid.studSpacingX;
+            studZ = anyGrid.studSpacingZ;
+        }
+
+        float midX = bounds.xMin + (bounds.width - 1) * 0.5f;
+        float midZ = bounds.yMin + (bounds.height - 1) * 0.5f;
+
+        for (int x = bounds.xMin; x <= bounds.xMax - 1; x++)
+        {
+            for (int z = bounds.yMin; z <= bounds.yMax - 1; z++)
+            {
+                bool isCorner =
+                    (x == bounds.xMin || x == bounds.xMax - 1) &&
+                    (z == bounds.yMin || z == bounds.yMax - 1);
+
+                if (!isCorner)
+                    continue;
+
+                Vector3 local = new Vector3(
+                    (x - midX) * studX,
+                    0f,
+                    (z - midZ) * studZ
+                );
+
+                origins.Add(transform.position + transform.rotation * local + up);
+            }
+        }
+
+        return origins;
     }
 
     // -------------------------------------------------------------------------
@@ -1522,7 +1583,10 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (forward.sqrMagnitude < 0.0001f)
             forward = Vector3.forward;
 
-        return Quaternion.LookRotation(forward.normalized, Vector3.up);
+        float yaw = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+        float snappedYaw = Mathf.Round(yaw / 90f) * 90f;
+
+        return Quaternion.Euler(0f, snappedYaw, 0f);
     }
 
     /// <summary>
@@ -1553,8 +1617,18 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (visualRoot == null)
             return;
 
-        if (visualRoot.parent != transform)
-            visualRoot.SetParent(transform, false);
+        // Safety: visualRoot must be a child of this spawned block instance.
+        // If the field accidentally points to a Prefab Asset or another object,
+        // Unity will throw "Transform resides in a Prefab asset..." when SetParent is called.
+        // In that case we do nothing and print a warning instead of breaking snapping.
+        if (!visualRoot.IsChildOf(transform))
+        {
+            Debug.LogWarning(
+                $"{gameObject.name}: VisualRoot is not a child of this block instance. " +
+                "Clear the Visual Root field or assign the VisualRoot child from inside this prefab instance."
+            );
+            return;
+        }
 
         visualRoot.localPosition = visualRootOriginalLocalPosition;
         visualRoot.localRotation = visualRootOriginalLocalRotation;
@@ -1685,9 +1759,6 @@ public class LegoBlockGhostManager : MonoBehaviour
         currentPlacementValid = false;
         hasActiveCandidate = false;
         activeCandidate = new SnapCandidate();
-        hasLockedPhysicalAnchor = false;
-        hasVisibleOrbitStep = false;
-        visibleOrbitStep = 0;
         rotationAnchorLockActive = false;
         HideGhost();
     }
@@ -1769,11 +1840,19 @@ public class LegoBlockGhostManager : MonoBehaviour
         meshSnapshots.Clear();
 
         Transform meshRoot = visualRoot != null ? visualRoot : transform;
-        MeshFilter[] meshFilters = meshRoot.GetComponentsInChildren<MeshFilter>();
+
+        // true = also include inactive child objects. This is useful for prefabs
+        // where some visual parts may be disabled/enabled by setup scripts.
+        MeshFilter[] meshFilters = meshRoot.GetComponentsInChildren<MeshFilter>(true);
 
         foreach (MeshFilter meshFilter in meshFilters)
         {
-            if (meshFilter.sharedMesh == null)
+            if (meshFilter == null || meshFilter.sharedMesh == null)
+                continue;
+
+            MeshRenderer renderer = meshFilter.GetComponent<MeshRenderer>();
+
+            if (renderer == null)
                 continue;
 
             meshSnapshots.Add(new MeshSnapshot
@@ -1781,24 +1860,14 @@ public class LegoBlockGhostManager : MonoBehaviour
                 mesh = meshFilter.sharedMesh,
                 localPosition = transform.InverseTransformPoint(meshFilter.transform.position),
                 localRotation = Quaternion.Inverse(transform.rotation) * meshFilter.transform.rotation,
-                localScale = meshFilter.transform.lossyScale
+                localScale = meshFilter.transform.localScale,
+                originalRenderer = renderer
             });
         }
+
+        Debug.Log($"{gameObject.name}: Cached ghost meshes = {meshSnapshots.Count}");
     }
 
-    /// <summary>
-    /// Returns effective width and length after applying a 90-degree yaw rotation.
-    /// </summary>
-    private (int width, int length) GetRotatedDimensions(LegoBlock legoBlock, float yawOffset)
-    {
-        bool rotatedByQuarterTurn =
-            Mathf.Approximately(Mathf.Abs(yawOffset) % 180f, 90f);
-
-        if (rotatedByQuarterTurn)
-            return (legoBlock.length, legoBlock.width);
-
-        return (legoBlock.width, legoBlock.length);
-    }
     /// <summary>
     /// Cleans up sockets and state when the block is deleted externally.
     /// </summary>

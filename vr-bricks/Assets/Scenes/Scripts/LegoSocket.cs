@@ -52,9 +52,23 @@ public class LegoSocket : MonoBehaviour
     /// </summary>
     public Vector3 GetSnapWorldPosition(LegoBlock block)
     {
-        if (parentGrid != null)
-            return parentGrid.GetBlockCenterWorldPosition(gridX, gridZ, block);
+        if (block == null)
+            return transform.position;
 
-        return transform.TransformPoint(new Vector3(0f, block.height, 0f));
+        if (parentGrid != null)
+        {
+            System.Collections.Generic.List<Vector2Int> footprint = block.GetStudFootprint();
+            System.Collections.Generic.List<Vector2Int> absoluteCells = new System.Collections.Generic.List<Vector2Int>(footprint.Count);
+
+            for (int i = 0; i < footprint.Count; i++)
+            {
+                Vector2Int cell = footprint[i];
+                absoluteCells.Add(new Vector2Int(gridX + cell.x, gridZ + cell.y));
+            }
+
+            return parentGrid.GetFootprintCenterWorldPosition(absoluteCells, block.GetWorldHeight());
+        }
+
+        return transform.TransformPoint(new Vector3(0f, block.GetWorldHeight(), 0f));
     }
 }

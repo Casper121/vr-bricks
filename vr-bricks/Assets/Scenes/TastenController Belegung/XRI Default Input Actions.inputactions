@@ -2348,6 +2348,17 @@
                 },
                 {
                     "name": "",
+                    "id": "740daba3-e934-4c4c-9f44-1238ee67a251",
+                    "path": "<XRController>{RightHand}/gripPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "RotateBlock",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "2085ef2f-48f9-4b3c-a1eb-1c770ba6c9ae",
                     "path": "<Mouse>/leftButton",
                     "interactions": "",

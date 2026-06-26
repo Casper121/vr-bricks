@@ -1,306 +1,256 @@
-﻿using UnityEngine;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 /// <summary>
-/// Generates and manages a rectangular grid of LEGO sockets.
-/// 
-/// This can be used for:
-/// - sockets on LEGO blocks,
-/// - invisible floor grids,
-/// - later AR-detected real-world surfaces.
+/// Generates and manages LEGO snap sockets for one connected LEGO surface.
+///
+/// Important:
+/// - Use one LegoBlockSocketSpawner per physical top surface.
+/// - Rectangle mode is for normal rectangular surfaces.
+/// - CustomCells mode is for irregular / combined surfaces.
+/// - For irregular blocks, customSocketCells should usually match the block's
+///   LegoBlock.studFootprintCells.
 /// </summary>
+[DisallowMultipleComponent]
 public class LegoBlockSocketSpawner : MonoBehaviour
 {
-    // -------------------------------------------------------------------------
-    // Inspector: Socket Prefab
-    // -------------------------------------------------------------------------
+    public enum SocketGridMode
+    {
+        Rectangle,
+        CustomCells
+    }
 
     [Header("Socket Prefab")]
-    [Tooltip("Prefab that contains a LegoSocket component and optionally a LegoSocketInteractor.")]
     public GameObject anchorPointPrefab;
 
-    // -------------------------------------------------------------------------
-    // Inspector: Grid Size
-    // -------------------------------------------------------------------------
+    [Header("Grid Mode")]
+    public SocketGridMode gridMode = SocketGridMode.Rectangle;
 
-    [Header("Grid Size")]
-    [Tooltip("Number of sockets in local X direction.")]
-    public int blockWidth = 4;
+    [Tooltip("Used in CustomCells mode. Add every socket cell that exists on this surface.")]
+    public List<Vector2Int> customSocketCells = new List<Vector2Int>
+    {
+        Vector2Int.zero
+    };
 
-    [Tooltip("Number of sockets in local Z direction.")]
-    public int blockLength = 2;
+    [Header("Rectangle Grid Size")]
+    [Min(1)] public int blockWidth = 4;
+    [Min(1)] public int blockLength = 2;
 
-    // -------------------------------------------------------------------------
-    // Inspector: Grid Position
-    // -------------------------------------------------------------------------
-
-    [Header("Grid Position")]
-    [Tooltip("Local Y position of every generated socket.")]
+    [Header("Grid Transform")]
     public float socketY = 0.2f;
-
-    [Tooltip("Local X offset of the first generated socket.")]
     public float offsetX = -0.2f;
-
-    [Tooltip("Local Z offset of the first generated socket.")]
     public float offsetZ = -0.8f;
-
-    // -------------------------------------------------------------------------
-    // Inspector: Grid Spacing
-    // -------------------------------------------------------------------------
-
-    [Header("Grid Spacing")]
-    [Tooltip("Distance between sockets in local X direction.")]
     public float studSpacingX = 0.5f;
-
-    [Tooltip("Distance between sockets in local Z direction.")]
     public float studSpacingZ = 0.5f;
 
-    // -------------------------------------------------------------------------
-    // Inspector: Visibility and Gizmos
-    // -------------------------------------------------------------------------
-
-    [Header("Visibility")]
-    [Tooltip("If enabled, all renderers on generated sockets are disabled.")]
+    [Header("Display")]
     [SerializeField] private bool hideGeneratedSocketRenderers = false;
-
-    [Header("Gizmos")]
-    [Tooltip("Draws socket positions when this object is selected.")]
     [SerializeField] private bool drawSocketGizmos = true;
-
-    [Tooltip("Size of the socket gizmo spheres.")]
     [SerializeField] private float gizmoSize = 0.04f;
 
-    // -------------------------------------------------------------------------
-    // Runtime State
-    // -------------------------------------------------------------------------
-
-    private readonly List<LegoSocket> allSockets = new List<LegoSocket>();
+    private readonly List<LegoSocket> sockets = new List<LegoSocket>();
     private readonly Dictionary<Vector2Int, LegoSocket> socketMap = new Dictionary<Vector2Int, LegoSocket>();
-
-    // -------------------------------------------------------------------------
-    // Unity Lifecycle
-    // -------------------------------------------------------------------------
 
     private void Start()
     {
         SpawnSockets();
     }
 
-    // -------------------------------------------------------------------------
-    // Public API: Area Queries
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Returns true if the target area touches at least one inner socket
-    /// and none of the touched sockets are occupied.
-    /// 
-    /// Missing sockets are ignored, which allows overhang outside the grid.
-    /// </summary>
-    public bool IsAreaClear(int startX, int startZ, int width, int length)
+#if UNITY_EDITOR
+    private void OnValidate()
     {
-        bool touchesAtLeastOneInnerSocket = false;
+        blockWidth = Mathf.Max(1, blockWidth);
+        blockLength = Mathf.Max(1, blockLength);
+        studSpacingX = Mathf.Max(0.01f, studSpacingX);
+        studSpacingZ = Mathf.Max(0.01f, studSpacingZ);
+        gizmoSize = Mathf.Max(0.001f, gizmoSize);
 
-        for (int x = startX; x < startX + width; x++)
-        {
-            for (int z = startZ; z < startZ + length; z++)
-            {
-                LegoSocket socket = GetSocketAt(x, z);
+        CleanCustomSocketCells();
+    }
+#endif
 
-                if (socket == null || !socket.isInnerSocket)
-                    continue;
-
-                touchesAtLeastOneInnerSocket = true;
-
-                if (socket.isOccupied)
-                    return false;
-            }
-        }
-
-        return touchesAtLeastOneInnerSocket;
+    [ContextMenu("Respawn Sockets")]
+    public void RespawnSockets()
+    {
+        SpawnSockets();
     }
 
-    /// <summary>
-    /// Returns all sockets inside a rectangular grid area.
-    /// 
-    /// Missing sockets are ignored, which allows overhang outside the grid.
-    /// </summary>
-    public List<LegoSocket> GetSocketsInArea(int startX, int startZ, int width, int length)
+    // ---------------------------------------------------------------------
+    // Public API used by LegoBlockGhostManager
+    // ---------------------------------------------------------------------
+
+    public bool IsFootprintAreaClear(List<Vector2Int> absoluteCells)
+    {
+        if (absoluteCells == null || absoluteCells.Count == 0)
+            return false;
+
+        bool touchedSocket = false;
+
+        for (int i = 0; i < absoluteCells.Count; i++)
+        {
+            LegoSocket socket = GetSocketAt(absoluteCells[i]);
+
+            if (socket == null || !socket.isInnerSocket)
+                continue;
+
+            touchedSocket = true;
+
+            if (socket.isOccupied)
+                return false;
+        }
+
+        return touchedSocket;
+    }
+
+    public bool DoesFootprintCoverInnerSocket(List<Vector2Int> absoluteCells)
+    {
+        if (absoluteCells == null || absoluteCells.Count == 0)
+            return false;
+
+        for (int i = 0; i < absoluteCells.Count; i++)
+        {
+            LegoSocket socket = GetSocketAt(absoluteCells[i]);
+
+            if (socket != null && socket.isInnerSocket)
+                return true;
+        }
+
+        return false;
+    }
+
+    public List<LegoSocket> GetSocketsInFootprint(List<Vector2Int> absoluteCells)
     {
         List<LegoSocket> result = new List<LegoSocket>();
 
-        for (int x = startX; x < startX + width; x++)
-        {
-            for (int z = startZ; z < startZ + length; z++)
-            {
-                LegoSocket socket = GetSocketAt(x, z);
+        if (absoluteCells == null)
+            return result;
 
-                if (socket != null && socket.isInnerSocket)
-                    result.Add(socket);
-            }
+        for (int i = 0; i < absoluteCells.Count; i++)
+        {
+            LegoSocket socket = GetSocketAt(absoluteCells[i]);
+
+            if (socket != null && socket.isInnerSocket && !result.Contains(socket))
+                result.Add(socket);
         }
 
         return result;
     }
 
-    /// <summary>
-    /// Marks all sockets inside an area as occupied or free.
-    /// Occupied sockets have their colliders disabled.
-    /// </summary>
-    public void SetSocketsOccupiedInArea(int startX, int startZ, int width, int length, bool occupied)
+    public void SetSocketsOccupiedInFootprint(List<Vector2Int> absoluteCells, bool occupied)
     {
-        List<LegoSocket> sockets = GetSocketsInArea(startX, startZ, width, length);
+        List<LegoSocket> touchedSockets = GetSocketsInFootprint(absoluteCells);
 
-        foreach (LegoSocket socket in sockets)
+        for (int i = 0; i < touchedSockets.Count; i++)
+            SetSocketOccupied(touchedSockets[i], occupied);
+    }
+
+    /// <summary>
+    /// Returns the world root/center position for a block that occupies absoluteCells.
+    /// The center is calculated from the bounding box of those cells.
+    /// </summary>
+    public Vector3 GetFootprintCenterWorldPosition(List<Vector2Int> absoluteCells, float blockWorldHeight)
+    {
+        if (absoluteCells == null || absoluteCells.Count == 0)
+            return transform.position;
+
+        RectInt bounds = GetBounds(absoluteCells);
+
+        float midX = bounds.xMin + (bounds.width - 1) * 0.5f;
+        float midZ = bounds.yMin + (bounds.height - 1) * 0.5f;
+
+        Vector3 localCenter = new Vector3(
+            midX * studSpacingX + offsetX,
+            socketY,
+            midZ * studSpacingZ + offsetZ
+        );
+
+        Vector3 worldCenter = transform.TransformPoint(localCenter);
+
+        // blockWorldHeight is already in world units, so add it after TransformPoint.
+        worldCenter.y += blockWorldHeight;
+
+        return worldCenter;
+    }
+
+    public LegoSocket GetSocketAt(int x, int z)
+    {
+        return GetSocketAt(new Vector2Int(x, z));
+    }
+
+    public List<Vector2Int> GetSocketCells()
+    {
+        if (gridMode == SocketGridMode.CustomCells)
         {
-            SetSocketOccupied(socket, occupied);
+            CleanCustomSocketCells();
+            return new List<Vector2Int>(customSocketCells);
         }
+
+        List<Vector2Int> result = new List<Vector2Int>(blockWidth * blockLength);
+
+        for (int x = 0; x < blockWidth; x++)
+        {
+            for (int z = 0; z < blockLength; z++)
+                result.Add(new Vector2Int(x, z));
+        }
+
+        return result;
     }
 
-    // -------------------------------------------------------------------------
-    // Public API: Position Calculation
-    // -------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // Socket generation
+    // ---------------------------------------------------------------------
 
-    /// <summary>
-    /// Calculates the world center position for a non-rotated block.
-    /// </summary>
-    public Vector3 GetBlockCenterWorldPosition(int gridX, int gridZ, LegoBlock block)
-    {
-        float midX = gridX + (block.width - 1) * 0.5f;
-        float midZ = gridZ + (block.length - 1) * 0.5f;
-
-        Vector3 localCenter = new Vector3(
-            midX * studSpacingX + offsetX,
-            socketY + block.height,
-            midZ * studSpacingZ + offsetZ
-        );
-
-        return transform.TransformPoint(localCenter);
-    }
-
-    /// <summary>
-    /// Calculates the world center position for a block with a yaw rotation.
-    /// </summary>
-    public Vector3 GetBlockCenterWorldPositionRotated(
-        int startGridX,
-        int startGridZ,
-        LegoBlock block,
-        float yawOffset
-    )
-    {
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, yawOffset);
-
-        float midX = startGridX + (effectiveWidth - 1) * 0.5f;
-        float midZ = startGridZ + (effectiveLength - 1) * 0.5f;
-
-        Vector3 localCenter = new Vector3(
-            midX * studSpacingX + offsetX,
-            socketY + block.height,
-            midZ * studSpacingZ + offsetZ
-        );
-
-        return transform.TransformPoint(localCenter);
-    }
-
-    // -------------------------------------------------------------------------
-    // Public API: Coverage Checks
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Returns true if the rotated block area touches at least one inner socket.
-    /// </summary>
-    public bool DoesRotatedBlockCoverInnerSocket(
-        int startGridX,
-        int startGridZ,
-        LegoBlock block,
-        float yawOffset
-    )
-    {
-        (int effectiveWidth, int effectiveLength) = GetRotatedDimensions(block, yawOffset);
-
-        return DoesAreaCoverInnerSocket(
-            startGridX,
-            startGridZ,
-            effectiveWidth,
-            effectiveLength
-        );
-    }
-
-    /// <summary>
-    /// Returns true if the non-rotated block area touches at least one inner socket.
-    /// </summary>
-    public bool DoesBlockCoverInnerSocket(int startGridX, int startGridZ, LegoBlock block)
-    {
-        return DoesAreaCoverInnerSocket(
-            startGridX,
-            startGridZ,
-            block.width,
-            block.length
-        );
-    }
-
-    // -------------------------------------------------------------------------
-    // Socket Generation
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Spawns all sockets for this grid.
-    /// </summary>
     private void SpawnSockets()
     {
         if (anchorPointPrefab == null)
         {
-            Debug.LogError($"{gameObject.name}: No socket prefab assigned.");
+            Debug.LogError($"{name}: Missing socket prefab.", this);
             return;
         }
 
         ClearGeneratedSockets();
 
-        for (int x = 0; x < blockWidth; x++)
-        {
-            for (int z = 0; z < blockLength; z++)
-            {
-                CreateSocket(x, z);
-            }
-        }
+        List<Vector2Int> cells = GetSocketCells();
+
+        for (int i = 0; i < cells.Count; i++)
+            CreateSocket(cells[i]);
     }
 
-    /// <summary>
-    /// Creates a single socket at the given grid coordinate.
-    /// </summary>
-    private void CreateSocket(int x, int z)
+    private void CreateSocket(Vector2Int cell)
     {
-        GameObject socketObject = Instantiate(anchorPointPrefab, transform);
+        if (socketMap.ContainsKey(cell))
+            return;
 
-        socketObject.transform.localPosition = GetSocketLocalPosition(x, z);
+        GameObject socketObject = Instantiate(anchorPointPrefab, transform);
+        socketObject.name = $"Socket_{cell.x}_{cell.y}";
+        socketObject.transform.localPosition = GetSocketLocalPosition(cell);
         socketObject.transform.localRotation = Quaternion.identity;
-        socketObject.name = $"Socket_{x}_{z}";
 
         LegoSocket socket = socketObject.GetComponent<LegoSocket>();
 
         if (socket == null)
         {
-            Debug.LogError($"{socketObject.name}: Socket prefab has no LegoSocket component.");
+            Debug.LogError($"{socketObject.name}: Socket prefab needs a LegoSocket component.", socketObject);
+            DestroySocketObject(socketObject);
             return;
         }
 
-        socket.isInnerSocket = true;
-        socket.gridX = x;
-        socket.gridZ = z;
+        socket.gridX = cell.x;
+        socket.gridZ = cell.y;
         socket.parentGrid = this;
+        socket.isInnerSocket = true;
+        socket.isOccupied = false;
 
-        allSockets.Add(socket);
-        socketMap[new Vector2Int(x, z)] = socket;
+        sockets.Add(socket);
+        socketMap[cell] = socket;
 
         if (hideGeneratedSocketRenderers)
             HideRenderers(socketObject);
     }
 
-    /// <summary>
-    /// Removes previously generated socket children.
-    /// </summary>
     private void ClearGeneratedSockets()
     {
-        allSockets.Clear();
+        sockets.Clear();
         socketMap.Clear();
 
         List<GameObject> childrenToDelete = new List<GameObject>();
@@ -311,59 +261,29 @@ public class LegoBlockSocketSpawner : MonoBehaviour
                 childrenToDelete.Add(child.gameObject);
         }
 
-        foreach (GameObject child in childrenToDelete)
-        {
-            Destroy(child);
-        }
+        for (int i = 0; i < childrenToDelete.Count; i++)
+            DestroySocketObject(childrenToDelete[i]);
     }
 
-    // -------------------------------------------------------------------------
-    // Internal Helpers
-    // -------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // Internal helpers
+    // ---------------------------------------------------------------------
 
-    /// <summary>
-    /// Returns the local position of a socket at the given grid coordinate.
-    /// </summary>
-    private Vector3 GetSocketLocalPosition(int x, int z)
+    private Vector3 GetSocketLocalPosition(Vector2Int cell)
     {
         return new Vector3(
-            x * studSpacingX + offsetX,
+            cell.x * studSpacingX + offsetX,
             socketY,
-            z * studSpacingZ + offsetZ
+            cell.y * studSpacingZ + offsetZ
         );
     }
 
-    /// <summary>
-    /// Returns the socket at the given grid coordinate, or null if none exists.
-    /// </summary>
-    private LegoSocket GetSocketAt(int x, int z)
+    private LegoSocket GetSocketAt(Vector2Int cell)
     {
-        socketMap.TryGetValue(new Vector2Int(x, z), out LegoSocket socket);
+        socketMap.TryGetValue(cell, out LegoSocket socket);
         return socket;
     }
 
-    /// <summary>
-    /// Returns true if the rectangular area touches at least one inner socket.
-    /// </summary>
-    private bool DoesAreaCoverInnerSocket(int startX, int startZ, int width, int length)
-    {
-        for (int x = startX; x < startX + width; x++)
-        {
-            for (int z = startZ; z < startZ + length; z++)
-            {
-                LegoSocket socket = GetSocketAt(x, z);
-
-                if (socket != null && socket.isInnerSocket)
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Marks a socket as occupied or free and updates its collider.
-    /// </summary>
     private void SetSocketOccupied(LegoSocket socket, bool occupied)
     {
         if (socket == null)
@@ -377,37 +297,180 @@ public class LegoBlockSocketSpawner : MonoBehaviour
             socketCollider.enabled = !occupied;
     }
 
-    /// <summary>
-    /// Disables all renderers on the target object and its children.
-    /// Useful for invisible floor grids.
-    /// </summary>
-    private void HideRenderers(GameObject target)
+    private void CleanCustomSocketCells()
     {
-        Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
+        if (customSocketCells == null)
+            customSocketCells = new List<Vector2Int>();
 
-        foreach (Renderer renderer in renderers)
+        List<Vector2Int> cleaned = new List<Vector2Int>();
+
+        for (int i = 0; i < customSocketCells.Count; i++)
+            AddUnique(cleaned, customSocketCells[i]);
+
+        if (cleaned.Count == 0)
+            cleaned.Add(Vector2Int.zero);
+
+        customSocketCells = cleaned;
+    }
+
+    private static void AddUnique(List<Vector2Int> list, Vector2Int cell)
+    {
+        if (!list.Contains(cell))
+            list.Add(cell);
+    }
+
+    private static RectInt GetBounds(List<Vector2Int> cells)
+    {
+        int minX = cells[0].x;
+        int maxX = cells[0].x;
+        int minZ = cells[0].y;
+        int maxZ = cells[0].y;
+
+        for (int i = 1; i < cells.Count; i++)
         {
-            renderer.enabled = false;
+            Vector2Int cell = cells[i];
+
+            if (cell.x < minX) minX = cell.x;
+            if (cell.x > maxX) maxX = cell.x;
+            if (cell.y < minZ) minZ = cell.y;
+            if (cell.y > maxZ) maxZ = cell.y;
         }
+
+        return new RectInt(minX, minZ, maxX - minX + 1, maxZ - minZ + 1);
     }
 
-    /// <summary>
-    /// Returns effective block width and length after a yaw rotation.
-    /// </summary>
-    private (int width, int length) GetRotatedDimensions(LegoBlock block, float yawOffset)
+    private static void HideRenderers(GameObject target)
     {
-        bool rotatedByQuarterTurn =
-            Mathf.Approximately(Mathf.Abs(yawOffset) % 180f, 90f);
+        Renderer[] renderers = target.GetComponentsInChildren<Renderer>(true);
 
-        if (rotatedByQuarterTurn)
-            return (block.length, block.width);
-
-        return (block.width, block.length);
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = false;
     }
 
-    // -------------------------------------------------------------------------
+    private static void DestroySocketObject(GameObject target)
+    {
+        if (Application.isPlaying)
+            Destroy(target);
+        else
+            DestroyImmediate(target);
+    }
+
+    // ---------------------------------------------------------------------
+    // Optional legacy wrappers
+    // Keep these only so older scripts do not break.
+    // ---------------------------------------------------------------------
+
+    public bool IsAreaClear(int startX, int startZ, int width, int length)
+    {
+        return IsFootprintAreaClear(BuildRectangleCells(startX, startZ, width, length));
+    }
+
+    public List<LegoSocket> GetSocketsInArea(int startX, int startZ, int width, int length)
+    {
+        return GetSocketsInFootprint(BuildRectangleCells(startX, startZ, width, length));
+    }
+
+    public void SetSocketsOccupiedInArea(int startX, int startZ, int width, int length, bool occupied)
+    {
+        SetSocketsOccupiedInFootprint(BuildRectangleCells(startX, startZ, width, length), occupied);
+    }
+
+    public bool DoesBlockCoverInnerSocket(int startGridX, int startGridZ, LegoBlock block)
+    {
+        if (block == null)
+            return false;
+
+        List<Vector2Int> localFootprint = block.GetStudFootprint();
+        List<Vector2Int> absoluteCells = new List<Vector2Int>(localFootprint.Count);
+
+        for (int i = 0; i < localFootprint.Count; i++)
+        {
+            Vector2Int cell = localFootprint[i];
+            absoluteCells.Add(new Vector2Int(startGridX + cell.x, startGridZ + cell.y));
+        }
+
+        return DoesFootprintCoverInnerSocket(absoluteCells);
+    }
+
+    public bool DoesRotatedBlockCoverInnerSocket(
+        int startGridX,
+        int startGridZ,
+        LegoBlock block,
+        float yawOffset
+    )
+    {
+        if (block == null)
+            return false;
+
+        int yawStep = Mathf.RoundToInt(yawOffset / 90f);
+        List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
+        List<Vector2Int> absoluteCells = new List<Vector2Int>(rotatedFootprint.Count);
+
+        for (int i = 0; i < rotatedFootprint.Count; i++)
+        {
+            Vector2Int cell = rotatedFootprint[i];
+            absoluteCells.Add(new Vector2Int(startGridX + cell.x, startGridZ + cell.y));
+        }
+
+        return DoesFootprintCoverInnerSocket(absoluteCells);
+    }
+
+    public Vector3 GetBlockCenterWorldPosition(int gridX, int gridZ, LegoBlock block)
+    {
+        if (block == null)
+            return transform.position;
+
+        List<Vector2Int> localFootprint = block.GetStudFootprint();
+        List<Vector2Int> absoluteCells = new List<Vector2Int>(localFootprint.Count);
+
+        for (int i = 0; i < localFootprint.Count; i++)
+        {
+            Vector2Int cell = localFootprint[i];
+            absoluteCells.Add(new Vector2Int(gridX + cell.x, gridZ + cell.y));
+        }
+
+        return GetFootprintCenterWorldPosition(absoluteCells, block.GetWorldHeight());
+    }
+
+    public Vector3 GetBlockCenterWorldPositionRotated(
+        int startGridX,
+        int startGridZ,
+        LegoBlock block,
+        float yawOffset
+    )
+    {
+        if (block == null)
+            return transform.position;
+
+        int yawStep = Mathf.RoundToInt(yawOffset / 90f);
+        List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
+        List<Vector2Int> absoluteCells = new List<Vector2Int>(rotatedFootprint.Count);
+
+        for (int i = 0; i < rotatedFootprint.Count; i++)
+        {
+            Vector2Int cell = rotatedFootprint[i];
+            absoluteCells.Add(new Vector2Int(startGridX + cell.x, startGridZ + cell.y));
+        }
+
+        return GetFootprintCenterWorldPosition(absoluteCells, block.GetWorldHeight());
+    }
+
+    private static List<Vector2Int> BuildRectangleCells(int startX, int startZ, int width, int length)
+    {
+        List<Vector2Int> cells = new List<Vector2Int>();
+
+        for (int x = startX; x < startX + width; x++)
+        {
+            for (int z = startZ; z < startZ + length; z++)
+                cells.Add(new Vector2Int(x, z));
+        }
+
+        return cells;
+    }
+
+    // ---------------------------------------------------------------------
     // Gizmos
-    // -------------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     private void OnDrawGizmosSelected()
     {
@@ -416,13 +479,12 @@ public class LegoBlockSocketSpawner : MonoBehaviour
 
         Gizmos.color = Color.green;
 
-        for (int x = 0; x < blockWidth; x++)
+        List<Vector2Int> cells = GetSocketCells();
+
+        for (int i = 0; i < cells.Count; i++)
         {
-            for (int z = 0; z < blockLength; z++)
-            {
-                Vector3 worldPosition = transform.TransformPoint(GetSocketLocalPosition(x, z));
-                Gizmos.DrawSphere(worldPosition, gizmoSize);
-            }
+            Vector3 world = transform.TransformPoint(GetSocketLocalPosition(cells[i]));
+            Gizmos.DrawSphere(world, gizmoSize);
         }
     }
 }

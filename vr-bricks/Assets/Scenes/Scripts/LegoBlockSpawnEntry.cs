@@ -7,9 +7,18 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "LEGO/Block Spawn Entry", fileName = "NewBlockEntry")]
 public class LegoBlockSpawnEntry : ScriptableObject
 {
+    public enum LegoMenuCategory
+    {
+        Blocks,
+        Plates
+    }
+
     [Header("Block Identity")]
     [Tooltip("Display name shown on the menu button, e.g. '2x2' or '2x4'.")]
     public string displayName = "2x2";
+
+    [Tooltip("Category where this entry appears in the block menu.")]
+    public LegoMenuCategory category = LegoMenuCategory.Blocks;
 
     [Tooltip("Prefab that will be instantiated when the button is pressed.")]
     public GameObject blockPrefab;
@@ -19,6 +28,6 @@ public class LegoBlockSpawnEntry : ScriptableObject
     public Sprite thumbnail;
 
     [Header("Button Color")]
-    [Tooltip("Tint color for this entry's button background.")]
+    [Tooltip("Tint color for this entry's button background. The hand menu currently uses the selected paint color as button tint.")]
     public Color buttonColor = new Color(0.2f, 0.5f, 1f, 1f);
 }
