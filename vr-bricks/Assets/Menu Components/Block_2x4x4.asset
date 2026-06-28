@@ -15,5 +15,5 @@ MonoBehaviour:
   displayName: 2x2x4
   category: 0
   blockPrefab: {fileID: 3311527455781804759, guid: 49163227421511f4b81bf858436a2825, type: 3}
-  thumbnail: {fileID: 0}
+  thumbnail: {fileID: 21300000, guid: fb39ec98d94f9124abcc1bd224b47aac, type: 3}
   buttonColor: {r: 0.2, g: 0.5, b: 1, a: 1}

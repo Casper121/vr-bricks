@@ -1,23 +1,32 @@
 using UnityEngine;
 
+/// <summary>
+/// Safe floor grid placer.
+/// 
+/// This version prevents duplicate grid spawning.
+/// It should be placed on an ALWAYS ACTIVE world object, NOT under MenuCanvas / BlockMenu.
+/// </summary>
 public class LegoGridSurfacePlacer : MonoBehaviour
 {
     [Header("Grid Prefab")]
     [SerializeField] private GameObject floorGridPrefab;
 
     [Header("Manual Target Surface")]
-    [Tooltip("Zum Testen: Zieh hier später eine echte MRUK-Fläche oder einen Fake-Tisch rein.")]
     [SerializeField] private Transform targetSurface;
 
     [Header("Placement")]
     [SerializeField] private Vector3 localOffset = Vector3.zero;
-
-    [Tooltip("Zusätzliche Drehung des Grids um die lokale Y-Achse der Fläche.")]
     [SerializeField] private float yawOffset = 0f;
 
     [Header("Behaviour")]
     [SerializeField] private bool placeOnStart = true;
-    [SerializeField] private bool destroyOldGridBeforePlacing = true;
+
+    [Tooltip("Keep false unless you really want to delete and respawn the grid.")]
+    [SerializeField] private bool replaceExistingGrid = false;
+
+    [Header("Floor Height Lock")]
+    [SerializeField] private bool lockY = true;
+    [SerializeField] private float lockedY = -0.4f;
 
     private GameObject spawnedGrid;
 
@@ -30,19 +39,25 @@ public class LegoGridSurfacePlacer : MonoBehaviour
     [ContextMenu("Place Grid")]
     public void PlaceGrid()
     {
+        if (spawnedGrid != null && !replaceExistingGrid)
+        {
+            ApplyLockedHeight(spawnedGrid);
+            return;
+        }
+
         if (floorGridPrefab == null)
         {
-            Debug.LogWarning("LegoGridSurfacePlacer: No floorGridPrefab assigned.");
+            Debug.LogWarning("LegoGridSurfacePlacer: No floorGridPrefab assigned.", this);
             return;
         }
 
         if (targetSurface == null)
         {
-            Debug.LogWarning("LegoGridSurfacePlacer: No targetSurface assigned.");
+            Debug.LogWarning("LegoGridSurfacePlacer: No targetSurface assigned.", this);
             return;
         }
 
-        if (spawnedGrid != null && destroyOldGridBeforePlacing)
+        if (spawnedGrid != null && replaceExistingGrid)
             Destroy(spawnedGrid);
 
         spawnedGrid = Instantiate(floorGridPrefab, transform);
@@ -51,7 +66,9 @@ public class LegoGridSurfacePlacer : MonoBehaviour
         spawnedGrid.transform.rotation =
             targetSurface.rotation * Quaternion.Euler(0f, yawOffset, 0f);
 
-        Debug.Log("LegoGridSurfacePlacer: Grid placed on " + targetSurface.name);
+        ApplyLockedHeight(spawnedGrid);
+
+        Debug.Log("LegoGridSurfacePlacer: Grid placed on " + targetSurface.name, this);
     }
 
     public void SetTargetSurface(Transform newTargetSurface)
@@ -63,5 +80,19 @@ public class LegoGridSurfacePlacer : MonoBehaviour
     public GameObject GetSpawnedGrid()
     {
         return spawnedGrid;
+    }
+
+    private void ApplyLockedHeight(GameObject grid)
+    {
+        if (!lockY || grid == null)
+            return;
+
+        Vector3 position = grid.transform.position;
+        position.y = lockedY;
+        grid.transform.position = position;
+
+        Vector3 scale = grid.transform.localScale;
+        scale.y = 1f;
+        grid.transform.localScale = scale;
     }
 }

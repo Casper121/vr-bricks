@@ -256,16 +256,27 @@ MonoBehaviour:
   releaseDistanceMultiplier: 1.1
   candidateSwitchMargin: 0.08
   allowedBelowSocket: 0.18
+  useSurfaceRaycastTargeting: 1
+  surfaceRayStartHeight: 1
+  surfaceRayDistance: 4
+  surfaceRayMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  debugSurfaceTargeting: 0
   usePhysicalFloorSocketBlocker: 0
   floorSocketBlockerRayDistance: 0.35
   floorSocketBlockerStartLift: 0.03
-  debugSnap: 1
-  drawSnapDebugGizmos: 1
-  sameSocketColumnTolerance: 0.08
-  ignoreOccupiedSocketsForInvalidGhost: 1
   rotationAnchorUnlockDistance: 0.35
   ghostColorValid: {r: 0.3, g: 0.6, b: 1, a: 0.4}
   ghostColorInvalid: {r: 1, g: 0.2, b: 0.2, a: 0.4}
+  preventGhostIntersectingBlocks: 1
+  blockCollisionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  collisionCheckShrink: 0.035
+  verticalTouchTolerance: 0.025
+  plateVisualHeightThreshold: 0
+  plateSameLogicFineTuneV2: 0
   visualRoot: {fileID: 6454290987429503849}
 --- !u!114 &5446536462352904519
 MonoBehaviour:

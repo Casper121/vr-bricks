@@ -1014,6 +1014,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "OpenSettingsMenu",
+                    "type": "Button",
+                    "id": "321c6b2e-174d-4d3b-8ddc-bff98da9d607",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -1261,19 +1270,8 @@
                 },
                 {
                     "name": "",
-                    "id": "69213c6c-1524-4c1d-abde-cbee4b762fe9",
-                    "path": "<Keyboard>/m",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "BlockMenuToggle",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "5bccb6b3-b6d1-435a-8cf6-6864d0be2075",
-                    "path": "<XRController>{LeftHand}/primaryButton",
+                    "path": "<XRController>{LeftHand}/secondaryButton",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -1300,6 +1298,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "DeleteBlock",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9518c6fc-3b58-42e9-9830-7969928359d4",
+                    "path": "<XRController>{LeftHand}/primaryButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "OpenSettingsMenu",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

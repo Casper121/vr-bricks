@@ -1042,6 +1042,9 @@ public class LegoHandMenu : MonoBehaviour
 
         GameObject block = Instantiate(entry.blockPrefab, spawnPos, spawnRot);
 
+        // Important for global scaling: newly spawned blocks must use the current LEGO scale.
+        block.transform.localScale = Vector3.one * LegoScaleMenu.CurrentScale;
+
         foreach (Renderer r in block.GetComponentsInChildren<Renderer>())
         {
             Material mat = new Material(r.material);
@@ -1134,6 +1137,7 @@ public class LegoHandMenu : MonoBehaviour
             return 0.1f;
 
         GameObject temp = Instantiate(prefab, Vector3.zero, spawnRotation);
+        temp.transform.localScale = Vector3.one * LegoScaleMenu.CurrentScale;
         temp.SetActive(false);
 
         Renderer[] tempRenderers = temp.GetComponentsInChildren<Renderer>();

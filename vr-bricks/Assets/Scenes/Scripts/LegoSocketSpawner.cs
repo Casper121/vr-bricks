@@ -158,18 +158,23 @@ public class LegoBlockSocketSpawner : MonoBehaviour
         float midX = bounds.xMin + (bounds.width - 1) * 0.5f;
         float midZ = bounds.yMin + (bounds.height - 1) * 0.5f;
 
-        Vector3 localCenter = new Vector3(
+        // Compute X/Z center in world space using TransformPoint (respects rotation/position),
+        // but pass Y=0 to avoid the parent block's scale shrinking socketY at small scales.
+        Vector3 localXZ = new Vector3(
             midX * studSpacingX + offsetX,
-            socketY,
+            0f,
             midZ * studSpacingZ + offsetZ
         );
 
-        Vector3 worldCenter = transform.TransformPoint(localCenter);
+        Vector3 worldXZ = transform.TransformPoint(localXZ);
 
-        // blockWorldHeight is already in world units, so add it after TransformPoint.
-        worldCenter.y += blockWorldHeight;
+        // socketY is an unscaled world-space height above this spawner's position.
+        // We must NOT pass it through TransformPoint: if this spawner is a child of
+        // a scaled LegoBlock, TransformPoint would multiply socketY by the block's
+        // scale and cause blocks to sink into the floor at scales below 1.
+        float worldY = transform.position.y + socketY + blockWorldHeight;
 
-        return worldCenter;
+        return new Vector3(worldXZ.x, worldY, worldXZ.z);
     }
 
     public LegoSocket GetSocketAt(int x, int z)

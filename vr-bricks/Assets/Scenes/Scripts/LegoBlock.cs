@@ -212,7 +212,7 @@ public class LegoBlock : MonoBehaviour
 
     public float GetWorldHeight()
     {
-        return height * transform.localScale.y;
+        return height;
     }
 
     /// <summary>

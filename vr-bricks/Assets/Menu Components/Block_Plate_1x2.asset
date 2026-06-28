@@ -15,5 +15,5 @@ MonoBehaviour:
   displayName: 1x2 Plate
   category: 1
   blockPrefab: {fileID: 6579359717024387432, guid: e5d3011dbdacd9642b9c4ab0a70ec7f5, type: 3}
-  thumbnail: {fileID: 0}
+  thumbnail: {fileID: 21300000, guid: e45beb299fac18b4b9cb465e2efa3ee2, type: 3}
   buttonColor: {r: 0.2, g: 0.5, b: 1, a: 1}
