@@ -7,8 +7,10 @@ using UnityEngine.InputSystem.Controls;
 /// Simple and strict menu switcher:
 /// - If the requested panel is already open: close it with animation.
 /// - If another panel is open: hide all others immediately, then open requested panel.
-/// 
-/// No watchdog. No guessing. Buttons MUST call this controller.
+/// - Settings opens with N.
+/// - Music opens with L.
+///
+/// Buttons should call this controller. LegoWristButtons already calls ToggleMusicPanel().
 /// </summary>
 public class LegoExclusiveMenuController : MonoBehaviour
 {
@@ -16,37 +18,40 @@ public class LegoExclusiveMenuController : MonoBehaviour
     [Tooltip("Your block menu object. In your scene this is usually MenuCanvas.")]
     [SerializeField] private GameObject blockMenu;
 
-    [Tooltip("Your visible settings panel object. In your scene this is SettingsMenu.")]
+    [Tooltip("Your visible settings panel object. In your scene this is usually SettingsMenu.")]
     [SerializeField] private GameObject settingsPanel;
 
     [Tooltip("Optional. Leave empty if you do not have one.")]
     [SerializeField] private GameObject mainPanel;
 
-    [Tooltip("Optional. Leave empty if you do not have one.")]
+    [Tooltip("Your music menu panel root. Assign your MusicMenu here.")]
     [SerializeField] private GameObject musicPanel;
 
     [Header("Keyboard")]
+    [SerializeField] private bool allowKeyboardFallback = true;
     [SerializeField] private Key settingsToggleKey = Key.N;
+    [SerializeField] private Key musicToggleKey = Key.L;
 
     private readonly List<GameObject> panels = new List<GameObject>();
 
     private void Awake()
     {
         RebuildPanelList();
-
-        // Start closed.
         CloseAllImmediate();
     }
 
     private void Update()
     {
-        if (Keyboard.current == null)
+        if (!allowKeyboardFallback || Keyboard.current == null)
             return;
 
-        KeyControl key = Keyboard.current[settingsToggleKey];
-
-        if (key != null && key.wasPressedThisFrame)
+        KeyControl settingsKey = Keyboard.current[settingsToggleKey];
+        if (settingsKey != null && settingsKey.wasPressedThisFrame)
             ToggleSettingsPanel();
+
+        KeyControl musicKey = Keyboard.current[musicToggleKey];
+        if (musicKey != null && musicKey.wasPressedThisFrame)
+            ToggleMusicPanel();
     }
 
     private void RebuildPanelList()
@@ -131,13 +136,10 @@ public class LegoExclusiveMenuController : MonoBehaviour
 
         if (IsOpen(target))
         {
-            // Same panel pressed again: close with animation.
             ClosePanelAnimated(target);
             return;
         }
 
-        // Switching to another panel:
-        // old panels disappear immediately, then new one opens.
         CloseAllExceptImmediate(target);
         OpenPanelAnimated(target);
     }
@@ -160,7 +162,6 @@ public class LegoExclusiveMenuController : MonoBehaviour
         if (panel == null)
             return;
 
-        // First activate root.
         if (!panel.activeSelf)
             panel.SetActive(true);
 
@@ -234,7 +235,6 @@ public class LegoExclusiveMenuController : MonoBehaviour
         if (panel == null)
             return;
 
-        // No animation while switching panels. This prevents overlap.
         panel.SetActive(false);
     }
 

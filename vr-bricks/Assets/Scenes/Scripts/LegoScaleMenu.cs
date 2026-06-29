@@ -32,7 +32,7 @@ public class LegoScaleMenu : MonoBehaviour
     [SerializeField] private Button resetButton;
 
     [Header("Scale Values")]
-    [SerializeField] private float minScale = 0.5f;
+    [SerializeField] private float minScale = 0.2f;
     [SerializeField] private float maxScale = 2.0f;
     [SerializeField] private float defaultScale = 1.0f;
 
@@ -98,6 +98,8 @@ public class LegoScaleMenu : MonoBehaviour
 
     private void Awake()
     {
+        EnforceScaleLimits();
+
         CurrentScale = Mathf.Clamp(defaultScale, minScale, maxScale);
         lastAppliedScale = CurrentScale;
 
@@ -119,6 +121,33 @@ public class LegoScaleMenu : MonoBehaviour
             resetButton.onClick.AddListener(ResetScale);
 
         UpdateLabel(CurrentScale);
+    }
+
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        EnforceScaleLimits();
+        UpdateSliderRangeOnly();
+        UpdateLabel(Mathf.Clamp(CurrentScale, minScale, maxScale));
+    }
+#endif
+
+    private void EnforceScaleLimits()
+    {
+        minScale = 0.2f;
+        maxScale = 2.0f;
+        defaultScale = Mathf.Clamp(defaultScale, minScale, maxScale);
+    }
+
+    private void UpdateSliderRangeOnly()
+    {
+        if (scaleSlider == null)
+            return;
+
+        scaleSlider.minValue = minScale;
+        scaleSlider.maxValue = maxScale;
+        scaleSlider.value = Mathf.Clamp(scaleSlider.value, minScale, maxScale);
     }
 
     private void OnDestroy()
@@ -169,6 +198,9 @@ public class LegoScaleMenu : MonoBehaviour
 
     public void ApplyScale(float scale)
     {
+        EnforceScaleLimits();
+        UpdateSliderRangeOnly();
+
         scale = Mathf.Clamp(scale, minScale, maxScale);
 
         float oldScale = Mathf.Max(0.0001f, lastAppliedScale);
