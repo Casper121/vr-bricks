@@ -171,10 +171,13 @@ MonoBehaviour:
   width: 1
   length: 2
   height: 0.4
+  footprintMode: 0
+  studFootprintCells:
+  - {x: 0, y: 0}
   studSizeX: 0.4
   studSizeZ: 0.4
   blockHeightScale: 1
-  gizmoOffset: {x: 0, y: 0, z: 0}
+  gizmoOffset: {x: 0, y: 0, z: -0.2}
 --- !u!114 &4794190987906228320
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -366,6 +369,7 @@ MonoBehaviour:
   releaseDistanceMultiplier: 1.15
   candidateSwitchMargin: 0.08
   allowedBelowSocket: 0.18
+  rotationAnchorUnlockDistance: 0.35
   ghostColorValid: {r: 0.3, g: 0.6, b: 1, a: 0.4}
   ghostColorInvalid: {r: 1, g: 0.2, b: 0.2, a: 0.4}
   visualRoot: {fileID: 4278156594561981776}

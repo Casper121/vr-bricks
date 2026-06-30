@@ -25,6 +25,18 @@ public class LegoHandMenu : MonoBehaviour
     [Header("Block Entries")]
     public List<LegoBlockSpawnEntry> blockEntries = new List<LegoBlockSpawnEntry>();
 
+    [Header("Block Categories")]
+    [Tooltip("Optional button that switches the block list to normal blocks.")]
+    public Button blocksCategoryButton;
+
+    [Tooltip("Optional button that switches the block list to plate blocks.")]
+    public Button platesCategoryButton;
+
+    [Tooltip("Optional label that shows the current category name.")]
+    public TextMeshProUGUI blockCategoryTitle;
+
+    private LegoBlockSpawnEntry.LegoMenuCategory activeBlockCategory = LegoBlockSpawnEntry.LegoMenuCategory.Blocks;
+
     [Header("Spawn Settings")]
     public float spawnDistance = 0.5f;
 
@@ -137,6 +149,7 @@ public class LegoHandMenu : MonoBehaviour
     {
         GenerateSVTexture();
         GenerateHueTexture();
+        SetupCategoryButtons();
         GenerateBlockButtons();
         UpdateColorFromHSV();
         InitCursorPositions();
@@ -828,6 +841,59 @@ public class LegoHandMenu : MonoBehaviour
     }
 
     // -------------------------------------------------------------------------
+    // Block Categories
+    // -------------------------------------------------------------------------
+
+    private void SetupCategoryButtons()
+    {
+        if (blocksCategoryButton != null)
+        {
+            blocksCategoryButton.onClick.RemoveAllListeners();
+            blocksCategoryButton.onClick.AddListener(() => SetBlockCategory(LegoBlockSpawnEntry.LegoMenuCategory.Blocks));
+            LegoButtonHover.AddTo(blocksCategoryButton.gameObject);
+        }
+
+        if (platesCategoryButton != null)
+        {
+            platesCategoryButton.onClick.RemoveAllListeners();
+            platesCategoryButton.onClick.AddListener(() => SetBlockCategory(LegoBlockSpawnEntry.LegoMenuCategory.Plates));
+            LegoButtonHover.AddTo(platesCategoryButton.gameObject);
+        }
+
+        RefreshCategoryVisuals();
+    }
+
+    public void SetBlockCategory(LegoBlockSpawnEntry.LegoMenuCategory category)
+    {
+        if (activeBlockCategory == category)
+            return;
+
+        activeBlockCategory = category;
+        GenerateBlockButtons();
+        RefreshCategoryVisuals();
+    }
+
+    private void RefreshCategoryVisuals()
+    {
+        if (blockCategoryTitle != null)
+            blockCategoryTitle.text = activeBlockCategory == LegoBlockSpawnEntry.LegoMenuCategory.Blocks ? "Blocks" : "Plates";
+
+        SetCategoryButtonVisual(blocksCategoryButton, activeBlockCategory == LegoBlockSpawnEntry.LegoMenuCategory.Blocks);
+        SetCategoryButtonVisual(platesCategoryButton, activeBlockCategory == LegoBlockSpawnEntry.LegoMenuCategory.Plates);
+    }
+
+    private void SetCategoryButtonVisual(Button button, bool selected)
+    {
+        if (button == null)
+            return;
+
+        Image image = button.GetComponent<Image>();
+
+        if (image != null)
+            image.color = selected ? Color.white : new Color(0.55f, 0.55f, 0.55f, 1f);
+    }
+
+    // -------------------------------------------------------------------------
     // Block Buttons
     // -------------------------------------------------------------------------
 
@@ -867,6 +933,9 @@ public class LegoHandMenu : MonoBehaviour
         foreach (LegoBlockSpawnEntry entry in blockEntries)
         {
             if (entry == null || entry.blockPrefab == null)
+                continue;
+
+            if (entry.category != activeBlockCategory)
                 continue;
 
             CreateBlockButton(entry);
@@ -973,6 +1042,9 @@ public class LegoHandMenu : MonoBehaviour
 
         GameObject block = Instantiate(entry.blockPrefab, spawnPos, spawnRot);
 
+        // Important for global scaling: newly spawned blocks must use the current LEGO scale.
+        block.transform.localScale = Vector3.one * LegoScaleMenu.CurrentScale;
+
         foreach (Renderer r in block.GetComponentsInChildren<Renderer>())
         {
             Material mat = new Material(r.material);
@@ -1065,6 +1137,7 @@ public class LegoHandMenu : MonoBehaviour
             return 0.1f;
 
         GameObject temp = Instantiate(prefab, Vector3.zero, spawnRotation);
+        temp.transform.localScale = Vector3.one * LegoScaleMenu.CurrentScale;
         temp.SetActive(false);
 
         Renderer[] tempRenderers = temp.GetComponentsInChildren<Renderer>();
