@@ -197,9 +197,20 @@ public class LegoTwoPanelMenuController : MonoBehaviour
             ForceAllClosed();
         }
 
-        HandleDirectXRControllerInput();
+        // FIX: HandleDirectXRControllerInput() and HandleFlyMovement() used to
+        // run here too - but LeftControllerGameControls now handles ALL
+        // controller-button menu toggling and flying instead. Having both
+        // active at once meant: (1) every menu button toggle happened TWICE
+        // per press (open, then immediately close again, since both scripts
+        // reacted to the same physical button), and (2) this old
+        // HandleFlyMovement() read the LEFT joystick's Y axis for flying -
+        // the SAME stick used for walking - so pushing forward to walk also
+        // triggered vertical flying at the same time, causing the "jumping
+        // while walking forward" behavior. Keeping only
+        // HandleKeyboardMenuInput() here, since that's for menu keyboard
+        // shortcuts (M/N/B/L) and doesn't overlap with anything
+        // LeftControllerGameControls does.
         HandleKeyboardMenuInput();
-        HandleFlyMovement();
     }
 
     private void TryFindLeftController()

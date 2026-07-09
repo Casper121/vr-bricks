@@ -117,7 +117,7 @@ public class LegoBlockGhostManager : MonoBehaviour
     [SerializeField] private float rotationAnchorUnlockDistance = 0.35f;
 
     [Tooltip("The rotation anchor lock releases once the hand has moved this FRACTION of one stud's spacing, instead of a fixed world-space distance. This keeps the lock feeling consistent regardless of block/scale size - a fixed distance like 35cm can block ALL normal hand movement between adjacent studs on small/scaled-down blocks, making points feel 'skipped'. 0.4-0.6 is a good range: enough to suppress tiny jitter right after rotating, but small enough that real repositioning still registers.")]
-    [SerializeField] private float rotationAnchorUnlockStudFraction = 0.5f;
+    [SerializeField] private float rotationAnchorUnlockStudFraction = 0.9f;
 
     [Tooltip("Ghost color for valid placement.")]
     [SerializeField] private Color ghostColorValid = new Color(0.3f, 0.6f, 1f, 0.4f);
@@ -206,6 +206,7 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     private LegoSocket currentSocket;
     private readonly List<LegoSocket> currentOccupiedSockets = new List<LegoSocket>();
+    private readonly List<LegoBlock> currentlyNotifiedSupportBlocks = new List<LegoBlock>();
     private readonly List<LegoSocketInteractor> allSocketInteractors = new List<LegoSocketInteractor>();
 
     // -------------------------------------------------------------------------
@@ -239,6 +240,14 @@ public class LegoBlockGhostManager : MonoBehaviour
     // set right after a rotation (O press) and released once the hand has moved
     // far enough. This is what makes "rotate in place" feel stable.
     private bool rotationAnchorLockActive;
+
+    [Tooltip("After rotating, no other candidate search (full or lightweight) runs at all until EITHER this many seconds have passed AND the hand has moved past rotationSearchGraceMoveDistance. RotateActiveCandidateInPlace's own result is left completely untouched during this window, which is what actually guarantees rotation can't get silently overridden mid-sequence - including no automatic switching to a different valid socket while you're just holding still looking at a red (invalid) ghost.")]
+    [SerializeField] private float rotationSearchGracePeriod = 0.15f;
+    private float rotationSearchGracePeriodEndTime;
+
+    [Tooltip("How far the hand needs to move (in world units) after rotating before any other search is allowed to resume, in addition to the time-based grace period above.")]
+    [SerializeField] private float rotationSearchGraceMoveDistance = 0.15f;
+    private Vector3 rotationSearchGraceHandPosition;
     private Vector3 rotationAnchorLockHandPosition;
 
     // Rotation is queued and applied from HandleHeldState only.
@@ -334,8 +343,32 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private void ApplyResponsiveCandidateTuning()
     {
-        candidateSwitchMargin = 0.05f;
-        currentCandidateHoldDistanceMultiplier = 1.05f;
+        // FIX: 0.05 was too small a margin - real, structural near-ties between
+        // two valid pivot choices (observed consistently at a ~0.28 distance
+        // gap, e.g. an anchor at cell (0,0) vs a neighboring stud on the same
+        // footprint) could make the hysteresis check in the "keep current
+        // candidate" logic fail to protect the currently-locked pivot,
+        // letting a fresh search's "equally good" alternative silently win -
+        // exactly what caused the block to jump to a different stud partway
+        // through a sequence of in-place rotations. Raising this well above
+        // that gap makes "stick with the pivot you already have" reliably win
+        // over a near-tied alternative, while still being small enough that a
+        // GENUINELY closer socket (a real, deliberate hand movement) still
+        // takes over normally.
+        // FIX: 1.05 was too tight - legitimate candidates (especially for
+        // larger/asymmetric footprints, or when tracking a non-origin pivot
+        // cell) regularly measured distances of 0.64-0.75 against a
+        // maxHoldDistance of only ~0.63, causing KeepCurrentCandidateLightweight
+        // to silently drop a perfectly valid, correctly-tracked candidate mid-
+        // rotation-sequence purely because of this too-tight distance cutoff -
+        // not because anything was actually wrong with it.
+        // Tuned down slightly from 0.4/3.0 - those values fixed the original
+        // bugs (a real ~0.28 tie-gap between pivots, and distances up to ~0.75
+        // for legitimate candidates) but made normal aiming feel sticky/
+        // unresponsive as a side effect. These are still comfortably above
+        // both those thresholds while feeling snappier day to day.
+        candidateSwitchMargin = 0.3f;
+        currentCandidateHoldDistanceMultiplier = 2.0f;
     }
 
     /// <summary>
@@ -506,6 +539,18 @@ public class LegoBlockGhostManager : MonoBehaviour
         return Mathf.Clamp(LegoScaleMenu.CurrentScale, 0.01f, 1f);
     }
 
+    /// <summary>
+    /// Plate seam support probes are different from general snap tolerances:
+    /// they MUST grow when the build is scaled up, otherwise the support probe /
+    /// vertical forgiveness that works at scale 1 becomes too small to catch the
+    /// collider of a larger scaled plate at a seam. Do not use this for normal
+    /// snap distance, only for plate/support collision allowance.
+    /// </summary>
+    private float GetPlateSeamScaleFactor()
+    {
+        return Mathf.Max(1f, Mathf.Abs(LegoScaleMenu.CurrentScale));
+    }
+
     private void Start()
     {
         CacheMeshSnapshots();
@@ -635,7 +680,12 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         // RebuildGhostForCandidate shows a valid (blue) or invalid (red) ghost
         // depending on whether the rotated footprint still fits, instead of
-        // silently discarding the preview.
+        // silently discarding the preview. Rotation itself always keeps
+        // progressing freely through every step (never reverted), and there's
+        // no automatic switching to an alternative socket either - if the
+        // rotated position is invalid, it just shows red and stays exactly
+        // there; finding a valid spot from there is entirely up to the player
+        // (rotate further or move the hand).
         RebuildGhostForCandidate(rotatedCandidate);
     }
 
@@ -722,11 +772,44 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (pendingRotationSteps != 0)
         {
             ApplyQueuedRotationStep();
+
+            // FIX: this used to `return` immediately here, skipping
+            // ApplyHeldRootRotation() (and therefore ResetVisualRoot())
+            // entirely on the exact frame a rotation happens. Rotating
+            // quickly enough could mean the next queued rotation step fires
+            // before a "normal" frame ever got a chance to run
+            // ApplyHeldRootRotation() - leaving the visual mesh child stuck
+            // wherever RotateActiveCandidateInPlace() last left it, never
+            // reset back to its correct default local transform. This is
+            // exactly what caused the visible mesh to drift away from the
+            // (always-correct, root-based) red footprint gizmo specifically
+            // at 90/180/270 degrees.
+            ApplyHeldRootRotation();
+
             wasHeld = true;
             return;
         }
 
         ApplyHeldRootRotation();
+
+        // FIX: after everything we tried (allowYawChange fixes, larger switch
+        // margins, larger hand-movement tolerance) still occasionally let some
+        // OTHER candidate-refresh path silently replace what
+        // RotateActiveCandidateInPlace had just correctly set up - including
+        // auto-switching to a different valid socket while the player was
+        // simply holding still looking at a red (invalid) ghost, which is not
+        // wanted at all. Now BOTH the time window AND a real hand movement
+        // (rotationSearchGraceMoveDistance) are required before any other
+        // search runs again - holding perfectly still, no matter how long,
+        // never triggers a switch; only a genuine, deliberate hand movement
+        // does.
+        float handMovedSinceRotate = Vector3.Distance(GetHeldReferencePosition(), rotationSearchGraceHandPosition);
+
+        if (Time.time < rotationSearchGracePeriodEndTime || handMovedSinceRotate < rotationSearchGraceMoveDistance)
+        {
+            wasHeld = true;
+            return;
+        }
 
         // Expensive socket search is throttled. The ghost itself is reused and
         // remains stable between searches, so this feels smoother in VR and avoids
@@ -817,7 +900,17 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (!hasActiveCandidate || activeCandidate.socket == null)
             return;
 
-        SnapCandidate refreshed = RefreshCandidate(activeCandidate);
+        // FIX: same root cause as the rotationAnchorLockActive fix above - this
+        // per-frame lightweight refresh used to call RefreshCandidate WITHOUT
+        // allowYawChange, so the instant the player rotated, this saw a yaw
+        // mismatch and treated the candidate as gone (refreshed.socket == null
+        // below), calling ClearTargetAndGhost() and forcing a brand new search
+        // next frame - which could land on a different stud/pivot than the one
+        // that was actually being tracked. This function's whole purpose is to
+        // cheaply keep following the SAME candidate frame to frame, including
+        // through rotations - it should never treat "yaw changed" as "candidate
+        // is gone".
+        SnapCandidate refreshed = RefreshCandidate(activeCandidate, allowYawChange: true);
 
         if (refreshed.socket == null)
             return;
@@ -828,6 +921,14 @@ public class LegoBlockGhostManager : MonoBehaviour
         // It only prevents an old ghost from sticking when the hand moved far away.
         if (refreshed.distance > maxHoldDistance || refreshed.distance == float.MaxValue)
         {
+            Debug.LogWarning(
+                "[LIGHTWEIGHT CLEAR DIAG] Dropping candidate here! " +
+                "refreshed.distance=" + refreshed.distance +
+                " maxHoldDistance=" + maxHoldDistance +
+                " pivotCell=" + refreshed.pivotCell +
+                " yawStepWhenBuilt=" + refreshed.yawStepWhenBuilt,
+                this
+            );
             ClearTargetAndGhost();
             return;
         }
@@ -855,29 +956,6 @@ public class LegoBlockGhostManager : MonoBehaviour
         int step = pendingRotationSteps;
         pendingRotationSteps = 0;
 
-        // TEMPORARY DIAGNOSTIC: logs the real, rendered mesh bounds center in world
-        // space right before and right after this rotation step, plus whether a
-        // snap candidate is currently active. Read this in the console after
-        // taking the headset off - no need to watch the Scene view live.
-        //
-        // - If beforeCenter and afterCenter are (near) identical while
-        //   hadCandidateBefore=False, the block itself does not shift on pure
-        //   rotation - the visible jump must come from the ghost/candidate system.
-        // - If they differ noticeably even with no candidate active, the actual
-        //   rotation/pivot itself is moving the visible block.
-        Renderer[] diagRenderers = GetComponentsInChildren<Renderer>();
-        Bounds diagBoundsBefore = default;
-        bool diagHasBounds = false;
-
-        for (int i = 0; i < diagRenderers.Length; i++)
-        {
-            if (diagRenderers[i] == null) continue;
-            if (!diagHasBounds) { diagBoundsBefore = diagRenderers[i].bounds; diagHasBounds = true; }
-            else diagBoundsBefore.Encapsulate(diagRenderers[i].bounds);
-        }
-
-        bool diagHadCandidateBefore = hasActiveCandidate && activeCandidate.socket != null;
-
         CurrentYawOffset += step * 90f;
         CurrentYawOffset %= 360f;
 
@@ -886,27 +964,8 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         RotateActiveCandidateInPlace(oldYawStep);
 
-        Bounds diagBoundsAfter = default;
-        bool diagHasBoundsAfter = false;
-
-        for (int i = 0; i < diagRenderers.Length; i++)
-        {
-            if (diagRenderers[i] == null) continue;
-            if (!diagHasBoundsAfter) { diagBoundsAfter = diagRenderers[i].bounds; diagHasBoundsAfter = true; }
-            else diagBoundsAfter.Encapsulate(diagRenderers[i].bounds);
-        }
-
-        if (diagHasBounds && diagHasBoundsAfter)
-        {
-            Vector3 diagDelta = diagBoundsAfter.center - diagBoundsBefore.center;
-            Debug.Log(
-                "[ROTATE DIAG] hadCandidateBefore=" + diagHadCandidateBefore +
-                " beforeCenter=" + diagBoundsBefore.center.ToString("F4") +
-                " afterCenter=" + diagBoundsAfter.center.ToString("F4") +
-                " deltaMagnitude=" + diagDelta.magnitude.ToString("F4") +
-                " delta=" + diagDelta.ToString("F4")
-            );
-        }
+        rotationSearchGracePeriodEndTime = Time.time + Mathf.Max(0f, rotationSearchGracePeriod);
+        rotationSearchGraceHandPosition = GetHeldReferencePosition();
     }
 
     /// <summary>
@@ -1116,9 +1175,41 @@ public class LegoBlockGhostManager : MonoBehaviour
 
             if (handMoveDistance <= effectiveUnlockDistance)
             {
-                SnapCandidate lockedCandidate = RefreshCandidate(activeCandidate);
+                // FIX: this used to call RefreshCandidate(activeCandidate) WITHOUT
+                // allowYawChange - but the entire point of rotationAnchorLockActive
+                // is to keep the SAME anchor/pivot stable ACROSS rotations. Without
+                // allowYawChange, RefreshCandidate's internal yaw-mismatch check
+                // (meant for a completely different situation - deciding whether an
+                // OLD, stale candidate is still valid at a NEW yaw) rejected this
+                // locked candidate the moment its yaw no longer matched
+                // yawStepWhenBuilt, silently dropping the lock and letting a fresh
+                // FindInitialSnapCandidate() search run instead - which can pick a
+                // DIFFERENT stud as its "best" pivot. That is exactly what produced
+                // the reproducible "only 2 of 4 rotations show a valid ghost"
+                // pattern: the lock was supposed to prevent this exact kind of
+                // mid-rotation-sequence candidate replacement.
+                SnapCandidate lockedCandidate = RefreshCandidate(activeCandidate, allowYawChange: true);
 
-                if (lockedCandidate.socket != null && IsCandidateValidForPreview(lockedCandidate))
+                bool socketOk = lockedCandidate.socket != null;
+                bool logicallyValid = socketOk && IsCandidateLogicallyValidForPreview(lockedCandidate);
+                bool noIntersect = socketOk && !CandidateWouldIntersectOtherBlocks(lockedCandidate);
+                bool fullyValid = socketOk && IsCandidateValidForPreview(lockedCandidate);
+
+                if (!fullyValid)
+                {
+                    Debug.LogWarning(
+                        "[LOCK DROP DIAG] Rotation anchor lock is being dropped! " +
+                        "socketOk=" + socketOk +
+                        " logicallyValid=" + logicallyValid +
+                        " noIntersect=" + noIntersect +
+                        " pivotCell=" + lockedCandidate.pivotCell +
+                        " anchorGridX=" + lockedCandidate.anchorGridX + " anchorGridZ=" + lockedCandidate.anchorGridZ +
+                        " yawStepWhenBuilt=" + lockedCandidate.yawStepWhenBuilt,
+                        this
+                    );
+                }
+
+                if (fullyValid)
                 {
                     activeCandidate = lockedCandidate;
                     hasActiveCandidate = true;
@@ -1127,6 +1218,10 @@ public class LegoBlockGhostManager : MonoBehaviour
                     RebuildGhostForCandidate(lockedCandidate);
                     return;
                 }
+            }
+            else
+            {
+                Debug.LogWarning($"[LOCK DROP DIAG] Rotation anchor lock dropped due to HAND MOVEMENT: handMoveDistance={handMoveDistance:F4} effectiveUnlockDistance={effectiveUnlockDistance:F4}", this);
             }
 
             rotationAnchorLockActive = false;
@@ -1189,7 +1284,13 @@ public class LegoBlockGhostManager : MonoBehaviour
         // sockets while still allowing clear movement to another socket.
         if (hasActiveCandidate && activeCandidate.socket != null)
         {
-            SnapCandidate refreshedActive = RefreshCandidate(activeCandidate);
+            // FIX: same root cause as the other call sites - without
+            // allowYawChange, rotating the block broke this hysteresis check
+            // (meant to prevent flicker between neighboring sockets), since it
+            // saw the yaw change and rejected the current candidate, letting
+            // bestCandidate silently win even when the truly correct thing was
+            // to keep following the SAME stud through the rotation.
+            SnapCandidate refreshedActive = RefreshCandidate(activeCandidate, allowYawChange: true);
 
             if (refreshedActive.socket != null &&
                 IsCandidateValidForPreview(refreshedActive) &&
@@ -1228,7 +1329,12 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (!hasActiveCandidate || activeCandidate.socket == null)
             return false;
 
-        SnapCandidate refreshed = RefreshCandidate(activeCandidate);
+        // FIX: same root cause as the other RefreshCandidate call sites above -
+        // without allowYawChange, rotating the block made this reject the
+        // candidate purely because its yaw changed, even though "keep the
+        // current valid candidate" is explicitly what this function is meant
+        // to do across rotations too.
+        SnapCandidate refreshed = RefreshCandidate(activeCandidate, allowYawChange: true);
 
         if (refreshed.socket == null)
             return false;
@@ -1309,6 +1415,38 @@ public class LegoBlockGhostManager : MonoBehaviour
             return;
         }
 
+        // TEMPORARY DIAGNOSTIC: dumps every value that determined this exact
+        // placement, right as it happens. Compare yawStepWhenBuilt/pivotCell/
+        // anchorGridX/Z/worldPosition against what you expected for the
+        // socket you actually released onto. Now also logs the BASE grid's
+        // (finalCandidate.parentGrid) own current transform, and the target
+        // socket's own actual world position - to check whether the base's
+        // rotation was correctly factored in, since this only seems to go
+        // wrong specifically when stacking onto a ROTATED base block.
+        LegoBlock baseBlockForDiag = finalCandidate.socket != null
+            ? finalCandidate.socket.GetComponentInParent<LegoBlock>()
+            : null;
+
+        Debug.Log(
+            "[SNAP PLACEMENT DIAG] Placing now. " +
+            "yawStepWhenBuilt=" + finalCandidate.yawStepWhenBuilt +
+            " GetEffectiveYawStep()=" + GetEffectiveYawStep() +
+            " pivotCell=" + finalCandidate.pivotCell +
+            " trueLocalPivotCell=" + finalCandidate.trueLocalPivotCell +
+            " anchorGridX=" + finalCandidate.anchorGridX + " anchorGridZ=" + finalCandidate.anchorGridZ +
+            " rotatedFootprint=[" + string.Join(",", finalCandidate.rotatedFootprint) + "]" +
+            " socket.gridX=" + finalCandidate.socket.gridX + " socket.gridZ=" + finalCandidate.socket.gridZ +
+            " socket.transform.position=" + finalCandidate.socket.transform.position.ToString("F4") +
+            " worldPosition=" + finalCandidate.worldPosition.ToString("F4") +
+            " worldRotation=" + finalCandidate.worldRotation.eulerAngles.ToString("F4") +
+            " CurrentYawOffset=" + CurrentYawOffset +
+            " heldBaseRotation=" + heldBaseRotation.eulerAngles.ToString("F4") +
+            " parentGrid.transform.position=" + finalCandidate.parentGrid.transform.position.ToString("F4") +
+            " parentGrid.transform.rotation=" + finalCandidate.parentGrid.transform.rotation.eulerAngles.ToString("F4") +
+            " baseBlock.transform.rotation=" + (baseBlockForDiag != null ? baseBlockForDiag.transform.rotation.eulerAngles.ToString("F4") : "N/A (no base block found)"),
+            this
+        );
+
         ResetVisualRoot();
 
         transform.position = finalCandidate.worldPosition;
@@ -1335,10 +1473,11 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         block.SetSnappedToSocket(true);
 
-        LegoBlock parentBlock = finalCandidate.socket.GetComponentInParent<LegoBlock>();
+        currentlyNotifiedSupportBlocks.Clear();
+        currentlyNotifiedSupportBlocks.AddRange(GetDirectSupportBlocksForCandidate(finalCandidate));
 
-        if (parentBlock != null)
-            parentBlock.AddAttachedBlockAbove();
+        for (int i = 0; i < currentlyNotifiedSupportBlocks.Count; i++)
+            currentlyNotifiedSupportBlocks[i].AddAttachedBlockAbove();
 
         OnSnapped();
     }
@@ -1390,10 +1529,11 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         block.SetSnappedToSocket(true);
 
-        LegoBlock parentBlock = finalCandidate.socket.GetComponentInParent<LegoBlock>();
+        currentlyNotifiedSupportBlocks.Clear();
+        currentlyNotifiedSupportBlocks.AddRange(GetDirectSupportBlocksForCandidate(finalCandidate));
 
-        if (parentBlock != null)
-            parentBlock.AddAttachedBlockAbove();
+        for (int i = 0; i < currentlyNotifiedSupportBlocks.Count; i++)
+            currentlyNotifiedSupportBlocks[i].AddAttachedBlockAbove();
 
         OnSnapped();
     }
@@ -1750,7 +1890,14 @@ public class LegoBlockGhostManager : MonoBehaviour
             trueLocalPivotCell = trueLocalPivotCell,
             rotatedFootprint = rotatedFootprint,
             parentGrid = socket.parentGrid,
-            yawStepWhenBuilt = GetEffectiveYawStep()
+            // FIX: must match what RefreshCandidate compares this against -
+            // that now uses yaw RELATIVE to the candidate's own grid (see
+            // GetYawStepRelativeToGrid), not the raw world yaw. Storing the
+            // world yaw here while comparing against relative yaw later would
+            // make RefreshCandidate think the yaw changed on EVERY check
+            // whenever this grid itself is rotated (since world yaw and
+            // relative yaw only coincide when the grid's own rotation is 0).
+            yawStepWhenBuilt = GetYawStepRelativeToGrid(socket.parentGrid)
         };
     }
 
@@ -1760,7 +1907,7 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private SnapCandidate ComputeCandidateForLockedSocket(LegoSocket socket)
     {
-        int yawStep = GetEffectiveYawStep();
+        int yawStep = GetYawStepRelativeToGrid(socket.parentGrid);
         List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
 
         // FIX: previously this always assumed pivotCell = (0,0), regardless of which
@@ -1796,6 +1943,47 @@ public class LegoBlockGhostManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Returns the yaw step (0-3) that the HELD block's footprint should be
+    /// rotated by for grid/pivot-cell math against a specific target grid -
+    /// this is NOT the same as the held block's raw world yaw step
+    /// (GetEffectiveYawStep) whenever the target grid itself is rotated.
+    ///
+    /// CORE FIX: GetFootprintCenterWorldPosition converts grid-cell offsets to
+    /// world space via targetGrid.transform.TransformPoint(...) - which
+    /// already applies the target grid's OWN current rotation once. Every
+    /// footprint/pivot-cell calculation upstream of that was rotating the held
+    /// block's footprint by its raw WORLD yaw step first - correct only when
+    /// the target grid's own rotation is 0 (e.g. the floor, which is never
+    /// rotated), but effectively double-applying rotation whenever stacking
+    /// onto a target block that is itself rotated (e.g. placed at 90 degrees).
+    /// That compounded rotation is exactly what produced a block landing
+    /// "halfway between two studs" specifically when - and only when -
+    /// stacking onto a rotated base, while floor placement (rotation always 0)
+    /// was never affected.
+    ///
+    /// The correct value here is the RELATIVE yaw between the held block and
+    /// the target grid: how the block's footprint is oriented in the grid's
+    /// OWN local frame, since TransformPoint already handles converting that
+    /// local frame into world space.
+    /// </summary>
+    private int GetYawStepRelativeToGrid(LegoBlockSocketSpawner targetGrid)
+    {
+        int heldWorldYawStep = GetEffectiveYawStep();
+
+        if (targetGrid == null)
+            return heldWorldYawStep;
+
+        int gridWorldYawStep = GetYawStep(targetGrid.transform.rotation.eulerAngles.y);
+
+        int relativeYawStep = (heldWorldYawStep - gridWorldYawStep) % 4;
+
+        if (relativeYawStep < 0)
+            relativeYawStep += 4;
+
+        return relativeYawStep;
+    }
+
+    /// <summary>
     /// Recalculates world position, rotation, footprint, and distance for a stored
     /// candidate at the current yaw, while keeping its footprint anchor grid
     /// position fixed. This is what makes rotation happen "in place".
@@ -1805,7 +1993,11 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (candidate.socket == null || candidate.parentGrid == null)
             return new SnapCandidate { socket = null, distance = float.MaxValue };
 
-        int yawStep = GetEffectiveYawStep();
+        // FIX: yawStep here now specifically means "yaw relative to THIS
+        // candidate's own target grid" (see GetYawStepRelativeToGrid above),
+        // not the held block's raw world yaw - this is what actually fixes
+        // stacking onto a rotated base block.
+        int yawStep = GetYawStepRelativeToGrid(candidate.parentGrid);
 
         // If the yaw changed since this candidate was built, its anchorGridX/Z
         // (chosen to align a SPECIFIC stud of the OLD footprint shape with the
@@ -1946,6 +2138,18 @@ public class LegoBlockGhostManager : MonoBehaviour
         if (CandidateWouldIntersectOtherBlocks(candidate))
             return false;
 
+        // FIX: TrySnapToCandidate (the actual placement) ALSO requires
+        // !WouldFinalPlacementGenuinelyOverlap - a separate, stricter check
+        // with much tighter tolerances than the two checks above. Without it
+        // here too, the ghost could show blue (valid) while this stricter
+        // check would still reject the same candidate the instant you
+        // release - exactly why the block sometimes just fell instead of
+        // snapping despite a blue ghost. The preview must use the same
+        // criteria as the real placement, or "blue" isn't a trustworthy
+        // promise.
+        if (WouldFinalPlacementGenuinelyOverlap(candidate))
+            return false;
+
         return true;
     }
 
@@ -2020,13 +2224,29 @@ public class LegoBlockGhostManager : MonoBehaviour
         // Near-zero shrink/tolerance: only truly touching faces are forgiven,
         // real interpenetration is always caught here, regardless of how
         // forgiving the live preview's settings are.
-        const float strictShrink = 0.01f;
-        const float strictVerticalTolerance = 0.01f;
+        //
+        // FIX: horizontal shrink needs to be noticeably bigger than vertical -
+        // side-by-side blocks on the SAME level have no other fallback (the
+        // clearlyBelow/clearlyAbove vertical check below only helps when one
+        // block is resting on top of another, not when they're just touching
+        // at a shared seam on the same floor level). Without enough
+        // horizontal shrink, two blocks placed directly next to each other
+        // could register as "overlapping" from floating-point-level contact
+        // alone, showing red at seams that aren't actually blocked.
+        const float strictHorizontalShrink = 0.08f;
+        const float strictVerticalShrink = 0.03f;
+        const float strictVerticalTolerance = 0.03f;
+
+        float strictScale = GetPlateSeamScaleFactor();
+        float strictShrinkX = Mathf.Min(strictHorizontalShrink * strictScale, width * 0.20f);
+        float strictShrinkZ = Mathf.Min(strictHorizontalShrink * strictScale, depth * 0.20f);
+        float strictShrinkY = Mathf.Min(strictVerticalShrink * strictScale, height * 0.25f);
+        float strictToleranceY = strictVerticalTolerance * strictScale;
 
         Vector3 halfExtents = new Vector3(
-            Mathf.Max(0.005f, width * 0.5f - strictShrink),
-            Mathf.Max(0.005f, height * 0.5f - strictShrink),
-            Mathf.Max(0.005f, depth * 0.5f - strictShrink)
+            Mathf.Max(0.005f, width * 0.5f - strictShrinkX),
+            Mathf.Max(0.005f, height * 0.5f - strictShrinkY),
+            Mathf.Max(0.005f, depth * 0.5f - strictShrinkZ)
         );
 
         List<LegoBlock> allowedSupportBlocks = GetAllowedSupportChainBlocks(candidate);
@@ -2061,9 +2281,17 @@ public class LegoBlockGhostManager : MonoBehaviour
                     continue;
 
                 Bounds otherBounds = hit.bounds;
+                float candidateHeight = Mathf.Max(0.0001f, candidateTop - candidateBottom);
 
-                bool clearlyBelow = otherBounds.max.y <= candidateBottom + strictVerticalTolerance;
-                bool clearlyAbove = otherBounds.min.y >= candidateTop - strictVerticalTolerance;
+                // REAL PLATE-SEAM FIX:
+                // The final strict check also has to accept the neighbouring plate/block
+                // as support. Otherwise a candidate that bridges across two thin plates
+                // is rejected on release because the second plate is treated as an overlap.
+                if (IsNeighbourSupportBelowCandidate(otherBounds, candidateBottom, candidateHeight))
+                    continue;
+
+                bool clearlyBelow = otherBounds.max.y <= candidateBottom + strictToleranceY;
+                bool clearlyAbove = otherBounds.min.y >= candidateTop - strictToleranceY;
 
                 if (clearlyBelow || clearlyAbove)
                     continue;
@@ -2201,30 +2429,164 @@ public class LegoBlockGhostManager : MonoBehaviour
 
     private bool IsNeighbourSupportBelowCandidate(Bounds otherBounds, float candidateBottom, float candidateHeight)
     {
-        // Same tightened height-relative cap as above (see FIX 2) - the
-        // dedicated bridging/neighbour-support case still gets a little more
-        // slack than plain touch-tolerance (0.25 vs 0.15) since it deliberately
-        // covers two side-by-side supports at slightly uneven heights, but it
-        // must not be generous enough to swallow a genuinely visible overlap.
+        // REAL PLATE-SEAM FIX:
+        // The previous cap used candidateHeight * 0.25. For plates this can become
+        // only a few millimetres after the collision box shrink, so the studs/bevels
+        // of the neighbouring plate are treated as a collision instead of support.
+        // Use a small scale-aware absolute tolerance, but require the other collider's
+        // CENTER to be below the candidate bottom. That keeps real same-level side
+        // collisions blocked while allowing thin support plates at seams.
+        float heightRelativeTolerance = candidateHeight * 0.75f;
+        float absolutePlateTolerance = 0.16f * GetPlateSeamScaleFactor();
+
         float tolerance = Mathf.Min(
             Mathf.Max(0f, neighbourSupportVerticalTolerance),
-            candidateHeight * 0.25f
+            Mathf.Max(heightRelativeTolerance, absolutePlateTolerance)
         );
 
-        // Normal support case: the top of the other block/studs is just below
-        // or slightly above the candidate bottom because of rounded stud
-        // colliders. This is exactly the case for setting one block across the
-        // seam between two support blocks.
-        if (otherBounds.max.y <= candidateBottom + tolerance)
+        bool centerIsBelowCandidate = otherBounds.center.y < candidateBottom;
+
+        if (centerIsBelowCandidate && otherBounds.max.y <= candidateBottom + tolerance)
             return true;
 
-        // Safety: if the block's center is still below the candidate bottom and
-        // only studs/collider bevels protrude upward, it is support, not a side
-        // blocker. A block at the same placement level will not pass this test.
-        if (otherBounds.center.y < candidateBottom && otherBounds.min.y < candidateBottom - tolerance * 0.5f)
+        // Extra safety for plate studs / bevel colliders: the support body is below,
+        // but a small part of its collider may protrude into the candidate's preview box.
+        if (centerIsBelowCandidate && otherBounds.min.y < candidateBottom - tolerance * 0.25f)
             return true;
 
         return false;
+    }
+
+    /// <summary>
+    /// Returns every block DIRECTLY touched/rested upon by this candidate's
+    /// own footprint - the anchor socket's own block, plus (for bridging) any
+    /// other block found underneath any other cell. Unlike
+    /// GetAllowedSupportChainBlocks below, this does NOT walk each one's own
+    /// further support chain - it's specifically for deciding which blocks
+    /// should be notified "something is now resting on you" (and therefore
+    /// become non-grabbable), not for collision-allowance purposes where a
+    /// broader set is appropriate.
+    /// </summary>
+    private List<LegoBlock> GetDirectSupportBlocksForCandidate(SnapCandidate candidate)
+    {
+        List<LegoBlock> result = new List<LegoBlock>();
+        List<LegoBlock> toExpand = new List<LegoBlock>();
+
+        LegoBlock anchorBlock = candidate.socket != null
+            ? candidate.socket.GetComponentInParent<LegoBlock>()
+            : null;
+
+        if (anchorBlock != null)
+        {
+            result.Add(anchorBlock);
+            toExpand.Add(anchorBlock);
+        }
+
+        List<Vector2Int> absoluteCells = GetAbsoluteCells(candidate);
+
+        if (absoluteCells != null && candidate.parentGrid != null)
+        {
+            Vector3 collisionHalfExtents = GetCandidateCellCollisionHalfExtents(candidate);
+
+            for (int i = 0; i < absoluteCells.Count; i++)
+            {
+                Vector3 cellCenter = GetCandidateCellWorldCenter(candidate, absoluteCells[i]);
+
+                // FIX: this used to build the search box from an arbitrary
+                // offset below the cell's CENTER, sized to the full stud
+                // footprint - that vertical range could reach high enough to
+                // catch the TOP surface of a same-level, side-by-side
+                // neighbor (which sits at roughly the same height as this
+                // candidate's own bottom), incorrectly treating it as
+                // "support" and locking it from removal too, even though it
+                // was never actually underneath anything. Computing the
+                // candidate's real bottom the same way the actual collision
+                // check does, and searching in a thin band strictly BELOW
+                // that (not up into the same height band a neighbor's top
+                // would occupy), only catches blocks that are genuinely
+                // underneath.
+                float candidateBottom = cellCenter.y - collisionHalfExtents.y;
+
+                // REAL PLATE-SEAM FIX:
+                // A fixed tiny probe below the candidate misses thin plates because the
+                // probe can sit completely below the plate collider. Use a scale-aware
+                // vertical band that reaches from just below the candidate bottom down
+                // into the support plate/block, so the second plate at a seam is found
+                // and added as a valid support.
+                float supportProbeDepth = Mathf.Max(0.12f * GetPlateSeamScaleFactor(), collisionHalfExtents.y * 3.0f);
+                Vector3 boxCenter = new Vector3(cellCenter.x, candidateBottom - supportProbeDepth * 0.5f, cellCenter.z);
+                Vector3 boxHalfExtents = new Vector3(collisionHalfExtents.x, supportProbeDepth * 0.5f, collisionHalfExtents.z);
+
+                Collider[] hitsBelow = Physics.OverlapBox(boxCenter, boxHalfExtents, candidate.worldRotation, blockCollisionMask, QueryTriggerInteraction.Ignore);
+
+                for (int h = 0; h < hitsBelow.Length; h++)
+                {
+                    if (hitsBelow[h] == null || hitsBelow[h].isTrigger)
+                        continue;
+
+                    LegoBlock underCellBlock = hitsBelow[h].GetComponentInParent<LegoBlock>();
+
+                    if (underCellBlock != null && underCellBlock != block && !result.Contains(underCellBlock))
+                    {
+                        result.Add(underCellBlock);
+                        toExpand.Add(underCellBlock);
+                    }
+                }
+            }
+        }
+
+        // FIX: nested bridging - notify every block at ANY depth that this
+        // placement ultimately rests on (bridges resting on other bridges),
+        // not just the first level, so removal-locking is correctly applied
+        // all the way down. Same iterative expansion as
+        // GetAllowedSupportChainBlocks.
+        int safetyDepth = 0;
+
+        while (toExpand.Count > 0 && safetyDepth < 8)
+        {
+            safetyDepth++;
+            List<LegoBlock> nextRound = new List<LegoBlock>();
+
+            for (int b = 0; b < toExpand.Count; b++)
+            {
+                LegoBlock expandBlock = toExpand[b];
+                Collider[] expandColliders = expandBlock.GetComponentsInChildren<Collider>();
+
+                if (expandColliders == null || expandColliders.Length == 0)
+                    continue;
+
+                Bounds expandBounds = expandColliders[0].bounds;
+
+                for (int c = 1; c < expandColliders.Length; c++)
+                {
+                    if (!expandColliders[c].isTrigger)
+                        expandBounds.Encapsulate(expandColliders[c].bounds);
+                }
+                float recursiveProbeDepth = 0.10f * GetPlateSeamScaleFactor();
+                Vector3 belowCenter = new Vector3(expandBounds.center.x, expandBounds.min.y - recursiveProbeDepth * 0.8f, expandBounds.center.z);
+                Vector3 belowHalfExtents = new Vector3(expandBounds.extents.x * 0.9f, recursiveProbeDepth * 0.5f, expandBounds.extents.z * 0.9f);
+
+                Collider[] deeperHits = Physics.OverlapBox(belowCenter, belowHalfExtents, expandBlock.transform.rotation, blockCollisionMask, QueryTriggerInteraction.Ignore);
+
+                for (int h = 0; h < deeperHits.Length; h++)
+                {
+                    if (deeperHits[h] == null || deeperHits[h].isTrigger)
+                        continue;
+
+                    LegoBlock deeperBlock = deeperHits[h].GetComponentInParent<LegoBlock>();
+
+                    if (deeperBlock != null && deeperBlock != block && !result.Contains(deeperBlock))
+                    {
+                        result.Add(deeperBlock);
+                        nextRound.Add(deeperBlock);
+                    }
+                }
+            }
+
+            toExpand = nextRound;
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -2242,6 +2604,116 @@ public class LegoBlockGhostManager : MonoBehaviour
             : null;
 
         AddSupportChain(result, supportBlock);
+
+        // FIX: AddSupportChain above only follows the anchor's OWN vertical
+        // SnappedSocket chain - none of those blocks were ever queued for
+        // further expansion, so if a bridge-on-bridge situation was actually
+        // nested beneath the ANCHOR side (not just the extra bridging side
+        // found below), recursion never continued there at all. Queuing
+        // everything already found so far ensures every block in the
+        // anchor's own chain also gets checked for further support
+        // underneath it.
+        List<Vector2Int> absoluteCells = GetAbsoluteCells(candidate);
+        List<LegoBlock> toExpand = new List<LegoBlock>(result);
+
+        if (absoluteCells != null && candidate.parentGrid != null)
+        {
+            Vector3 collisionHalfExtents = GetCandidateCellCollisionHalfExtents(candidate);
+
+            for (int i = 0; i < absoluteCells.Count; i++)
+            {
+                Vector3 cellCenter = GetCandidateCellWorldCenter(candidate, absoluteCells[i]);
+
+                // Search strictly below the candidate's real bottom surface,
+                // not an arbitrary range from the cell's center that could
+                // reach up into a same-level neighbor's own height band.
+                float candidateBottom = cellCenter.y - collisionHalfExtents.y;
+
+                // REAL PLATE-SEAM FIX:
+                // A fixed tiny probe below the candidate misses thin plates because the
+                // probe can sit completely below the plate collider. Use a scale-aware
+                // vertical band that reaches from just below the candidate bottom down
+                // into the support plate/block, so the second plate at a seam is found
+                // and added as a valid support.
+                float supportProbeDepth = Mathf.Max(0.12f * GetPlateSeamScaleFactor(), collisionHalfExtents.y * 3.0f);
+                Vector3 boxCenter = new Vector3(cellCenter.x, candidateBottom - supportProbeDepth * 0.5f, cellCenter.z);
+                Vector3 boxHalfExtents = new Vector3(collisionHalfExtents.x, supportProbeDepth * 0.5f, collisionHalfExtents.z);
+
+                Collider[] hitsBelow = Physics.OverlapBox(boxCenter, boxHalfExtents, candidate.worldRotation, blockCollisionMask, QueryTriggerInteraction.Ignore);
+
+                for (int h = 0; h < hitsBelow.Length; h++)
+                {
+                    if (hitsBelow[h] == null || hitsBelow[h].isTrigger)
+                        continue;
+
+                    LegoBlock underCellBlock = hitsBelow[h].GetComponentInParent<LegoBlock>();
+
+                    if (underCellBlock != null && underCellBlock != block && !result.Contains(underCellBlock))
+                    {
+                        AddSupportChain(result, underCellBlock);
+                        toExpand.Add(underCellBlock);
+                    }
+                }
+            }
+        }
+
+        // FIX: nested bridging - a bridge block resting on TWO other blocks
+        // only has ONE of them recorded via its own SnappedSocket (which
+        // AddSupportChain follows) - the SECOND block it's also physically
+        // resting on is only known through this same bridging mechanism, not
+        // through SnappedSocket. So bridging a NEW block onto the seam of two
+        // blocks that are THEMSELVES bridges missed whichever second support
+        // each of those underlying bridges was also resting on. This
+        // recursively expands: for every newly found support block, also
+        // search directly beneath ITS OWN full collider bounds for further
+        // support, and keeps expanding until nothing new turns up (capped for
+        // safety) - this handles bridges stacked on bridges at any depth, not
+        // just one extra level.
+        int safetyDepth = 0;
+
+        while (toExpand.Count > 0 && safetyDepth < 8)
+        {
+            safetyDepth++;
+            List<LegoBlock> nextRound = new List<LegoBlock>();
+
+            for (int b = 0; b < toExpand.Count; b++)
+            {
+                LegoBlock expandBlock = toExpand[b];
+                Collider[] expandColliders = expandBlock.GetComponentsInChildren<Collider>();
+
+                if (expandColliders == null || expandColliders.Length == 0)
+                    continue;
+
+                Bounds expandBounds = expandColliders[0].bounds;
+
+                for (int c = 1; c < expandColliders.Length; c++)
+                {
+                    if (!expandColliders[c].isTrigger)
+                        expandBounds.Encapsulate(expandColliders[c].bounds);
+                }
+                float recursiveProbeDepth = 0.10f * GetPlateSeamScaleFactor();
+                Vector3 belowCenter = new Vector3(expandBounds.center.x, expandBounds.min.y - recursiveProbeDepth * 0.8f, expandBounds.center.z);
+                Vector3 belowHalfExtents = new Vector3(expandBounds.extents.x * 0.9f, recursiveProbeDepth * 0.5f, expandBounds.extents.z * 0.9f);
+
+                Collider[] deeperHits = Physics.OverlapBox(belowCenter, belowHalfExtents, expandBlock.transform.rotation, blockCollisionMask, QueryTriggerInteraction.Ignore);
+
+                for (int h = 0; h < deeperHits.Length; h++)
+                {
+                    if (deeperHits[h] == null || deeperHits[h].isTrigger)
+                        continue;
+
+                    LegoBlock deeperBlock = deeperHits[h].GetComponentInParent<LegoBlock>();
+
+                    if (deeperBlock != null && deeperBlock != block && !result.Contains(deeperBlock))
+                    {
+                        AddSupportChain(result, deeperBlock);
+                        nextRound.Add(deeperBlock);
+                    }
+                }
+            }
+
+            toExpand = nextRound;
+        }
 
         return result;
     }
@@ -2285,15 +2757,25 @@ public class LegoBlockGhostManager : MonoBehaviour
         float depth = candidate.parentGrid.studSpacingZ * Mathf.Abs(scaleZ);
         float height = block.height * Mathf.Abs(transform.localScale.y);
 
-        float shrink = Mathf.Max(
+        float baseShrink = Mathf.Max(
             0f,
             useFalseRedGhostFix ? collisionCheckShrinkV2 : collisionCheckShrink
         );
 
+        // Scale-aware shrink fix:
+        // A fixed 0.10 world-unit shrink was tuned at scale 1. At larger LEGO
+        // scale it becomes proportionally too small, so seam/contact bevels on
+        // plates can again be counted as overlap. Grow the shrink for scaled-up
+        // blocks, but cap it per axis so the collision box never disappears.
+        float scaledShrink = baseShrink * GetPlateSeamScaleFactor();
+        float shrinkX = Mathf.Min(scaledShrink, width * 0.20f);
+        float shrinkZ = Mathf.Min(scaledShrink, depth * 0.20f);
+        float shrinkY = Mathf.Min(scaledShrink, height * 0.30f);
+
         return new Vector3(
-            Mathf.Max(0.01f, width * 0.5f - shrink),
-            Mathf.Max(0.01f, height * 0.5f - shrink),
-            Mathf.Max(0.01f, depth * 0.5f - shrink)
+            Mathf.Max(0.01f, width * 0.5f - shrinkX),
+            Mathf.Max(0.01f, height * 0.5f - shrinkY),
+            Mathf.Max(0.01f, depth * 0.5f - shrinkZ)
         );
     }
 
@@ -2373,18 +2855,21 @@ public class LegoBlockGhostManager : MonoBehaviour
             (cell.y - midZ) * worldStudZ
         );
 
-        // FIX: "cell" and "bounds" both come from rotatedFootprint - i.e. they
-        // are ALREADY expressed in rotated, grid-aligned coordinates (the same
-        // space the target grid's own X/Z axes use), not in the block's
-        // original pre-rotation local space. Multiplying localOffset by
-        // transform.rotation applied the current yaw a SECOND time on top of
-        // that - correct (a no-op) at yaw 0, but increasingly wrong the more
-        // the block is rotated, silently corrupting the measured distance used
-        // to pick the closest overhang/socket candidate. That is exactly why
-        // the "skips valid spots" symptom only ever showed up once the block
-        // was rotated, never at 0 degrees. localOffset must be added directly,
-        // with no further rotation.
-        return GetHeldReferencePosition() + localOffset;
+        // FIX: localOffset is expressed in the TARGET GRID's own local
+        // X/Z axes (the same space rotatedFootprint's cells use) - it only
+        // happens to line up with world X/Z when the target grid itself has
+        // zero rotation (e.g. the floor). Adding it directly as if it were
+        // already a world-space offset meant that moving your hand
+        // left/right could feel inverted (or rotated to some other
+        // direction) specifically whenever the target grid - a rotated base
+        // block, most commonly at 180 degrees where X and Z world directions
+        // end up flipped relative to the grid's own axes - wasn't at yaw 0.
+        // Rotating localOffset by the grid's actual current rotation first
+        // correctly converts it into a real world-space offset before adding
+        // it to the hand's world position.
+        Vector3 worldOffset = referenceGrid.transform.rotation * localOffset;
+
+        return GetHeldReferencePosition() + worldOffset;
     }
 
     /// <summary>
@@ -2425,9 +2910,6 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         // FALLBACK PATH: no ray interactor is currently selecting this block (e.g.
         // direct hand grab). Use the original nearby-socket distance/height search.
-        int yawStep = GetEffectiveYawStep();
-        List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
-
         LegoSocket[] allSockets = GetCandidateSocketsFromTargetSurface();
 
         if (allSockets == null || allSockets.Length == 0)
@@ -2440,6 +2922,18 @@ public class LegoBlockGhostManager : MonoBehaviour
         {
             if (!IsSocketUsableForInvalidSearch(socket))
                 continue;
+
+            // FIX: yawStep/rotatedFootprint used to be computed ONCE, outside
+            // this loop, using the held block's raw world yaw - but allSockets
+            // can contain sockets from MULTIPLE different grids at once (the
+            // floor plus one or more nearby placed blocks), each potentially
+            // rotated differently. Computed per-socket here, relative to THAT
+            // socket's own grid, exactly like the RefreshCandidate fix above -
+            // otherwise this reintroduces the same "lands wrong on a rotated
+            // base" bug for the very first candidate found, before any
+            // rotation-in-place refresh ever runs.
+            int yawStep = GetYawStepRelativeToGrid(socket.parentGrid);
+            List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
 
             if (!IsSocketNearHeldBlock(socket, rotatedFootprint))
                 continue;
@@ -2610,7 +3104,7 @@ public class LegoBlockGhostManager : MonoBehaviour
         float hitGridXf = (localHit.x - grid.offsetX) / safeSpacingX;
         float hitGridZf = (localHit.z - grid.offsetZ) / safeSpacingZ;
 
-        int yawStep = GetEffectiveYawStep();
+        int yawStep = GetYawStepRelativeToGrid(grid);
         List<Vector2Int> rotatedFootprint = block.GetRotatedFootprint(yawStep);
 
         if (rotatedFootprint == null || rotatedFootprint.Count == 0)
@@ -2807,6 +3301,26 @@ public class LegoBlockGhostManager : MonoBehaviour
             if (candidateHeightDelta > currentHeightDelta + 0.03f)
                 return false;
         }
+
+        // FIX: within tie-breaking range, strongly prefer the candidate whose
+        // TRUE pivot is the block's own local origin (0,0) over any other
+        // stud. Previously, which exact stud got picked as the anchor for a
+        // roughly-centered aim could vary based on tiny differences in hand
+        // position - not wrong on its own (this is exactly what makes
+        // overhang possible), but it meant a simple "aim at a point and
+        // rotate" could unpredictably lock onto a non-origin stud, giving
+        // visually inconsistent rotation behavior for no obvious reason. This
+        // only affects genuine near-ties (within almostSameDistance) - a
+        // clearly closer non-origin stud (e.g. deliberately overhanging an
+        // edge) still correctly wins on raw distance above.
+        bool candidateIsOrigin = candidate.trueLocalPivotCell == Vector2Int.zero;
+        bool currentBestIsOrigin = currentBest.trueLocalPivotCell == Vector2Int.zero;
+
+        if (candidateIsOrigin && !currentBestIsOrigin)
+            return true;
+
+        if (!candidateIsOrigin && currentBestIsOrigin)
+            return false;
 
         return candidate.distance < currentBest.distance;
     }
@@ -3067,12 +3581,32 @@ public class LegoBlockGhostManager : MonoBehaviour
         // --- Stacked sockets on nearby placed blocks ---
         float worldSearchRadius = Mathf.Max(1.0f, (bounds.width + bounds.height) * 0.5f * maxStudSpacing + extraRadius * maxStudSpacing);
 
+        // FIX: this used to be QueryTriggerInteraction.Collide, which ALSO
+        // matches trigger colliders - and LEGO socket objects (LegoSocketInteractor,
+        // used for XR socket detection) almost certainly use trigger colliders.
+        // Once Auto Fit To Floor correctly populates a large floor with its
+        // real, dense grid of individual socket objects (thousands of small
+        // trigger colliders), this search's FIXED-SIZE buffer
+        // (nearbyBlockColliderBuffer, only 1500 slots) could get filled up
+        // with floor-socket trigger hits before ever reaching the ONE actual
+        // block collider we're looking for - silently dropping the real
+        // target block from the results. That's exactly why placing directly
+        // on the floor always worked (a completely different, index-based
+        // lookup - no physics query at all) while stacking onto another
+        // block became unreliable specifically once the floor grid was
+        // densely populated, and why removing the floor grid entirely "fixed"
+        // it (far fewer competing trigger colliders in range).
+        //
+        // Blocks' own physical colliders are solid (non-trigger) - see
+        // CacheHeldOwnColliders/the collision-ignore system elsewhere in this
+        // file - so Ignore here still finds every real placed block, it just
+        // stops LEGO socket trigger zones from ever competing for the buffer.
         int hitCount = Physics.OverlapSphereNonAlloc(
             GetHeldReferencePosition(),
             worldSearchRadius,
             nearbyBlockColliderBuffer,
             blockCollisionMask,
-            QueryTriggerInteraction.Collide
+            QueryTriggerInteraction.Ignore
         );
 
         if (debugStackingSearch)
@@ -3343,6 +3877,39 @@ public class LegoBlockGhostManager : MonoBehaviour
         Physics.SyncTransforms();
 
         ResetVisualRoot();
+
+        // TEMPORARY DIAGNOSTIC: directly compares visualRoot's actual local
+        // transform right now against the values ResetVisualRoot() just tried
+        // to restore it to. If these ever differ, something is either
+        // overriding visualRoot AFTER this point in the same frame, or
+        // ResetVisualRoot() itself isn't actually managing to apply the
+        // values (e.g. a parent-constraint component fighting it).
+        if (visualRoot != null)
+        {
+            bool posMatches = Vector3.Distance(visualRoot.localPosition, visualRootOriginalLocalPosition) < 0.0001f;
+            bool rotMatches = Quaternion.Angle(visualRoot.localRotation, visualRootOriginalLocalRotation) < 0.01f;
+
+            if (!posMatches || !rotMatches)
+            {
+                Debug.LogWarning(
+                    "[VISUALROOT DIAG] MISMATCH after reset! " +
+                    "currentLocalPos=" + visualRoot.localPosition.ToString("F4") +
+                    " expectedLocalPos=" + visualRootOriginalLocalPosition.ToString("F4") +
+                    " currentLocalRot=" + visualRoot.localRotation.eulerAngles.ToString("F4") +
+                    " expectedLocalRot=" + visualRootOriginalLocalRotation.eulerAngles.ToString("F4") +
+                    " CurrentYawOffset=" + CurrentYawOffset,
+                    this
+                );
+            }
+            else
+            {
+                Debug.Log(
+                    "[VISUALROOT DIAG] OK, matches. CurrentYawOffset=" + CurrentYawOffset +
+                    " rootWorldRot=" + transform.rotation.eulerAngles.ToString("F4"),
+                    this
+                );
+            }
+        }
     }
 
     /// <summary>
@@ -3368,6 +3935,14 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         visualRoot.localPosition = visualRootOriginalLocalPosition;
         visualRoot.localRotation = visualRootOriginalLocalRotation;
+
+        // TEMPORARY DEBUG - remove once the rotation-drift bug is found.
+        Debug.Log(
+            $"[VISUALROOT DEBUG] Reset '{gameObject.name}' visualRoot to " +
+            $"storedPos={visualRootOriginalLocalPosition:F4} storedRot(euler)={visualRootOriginalLocalRotation.eulerAngles:F4} " +
+            $"| NOW ACTUALLY reads pos={visualRoot.localPosition:F4} rot(euler)={visualRoot.localRotation.eulerAngles:F4} " +
+            $"| yawOffset={CurrentYawOffset:F1}"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -3379,21 +3954,21 @@ public class LegoBlockGhostManager : MonoBehaviour
     /// </summary>
     private void ReleaseCurrentOccupiedSocketsAndNotifyParent()
     {
-        LegoBlock parentBlock = null;
-
-        if (currentSocket != null)
-        {
-            parentBlock = currentSocket.GetComponentInParent<LegoBlock>();
-        }
-        else if (currentOccupiedSockets.Count > 0 && currentOccupiedSockets[0] != null)
-        {
-            parentBlock = currentOccupiedSockets[0].GetComponentInParent<LegoBlock>();
-        }
-
         ReleaseCurrentOccupiedSockets();
 
-        if (parentBlock != null)
-            parentBlock.RemoveAttachedBlockAbove();
+        // FIX: this used to guess a single "parentBlock" from currentSocket/
+        // currentOccupiedSockets and only notify that one - now we simply
+        // release exactly the same set of blocks that were notified when
+        // this block was placed (currentlyNotifiedSupportBlocks, populated in
+        // TrySnapToCandidate/TrySnapToTarget), covering the anchor AND any
+        // bridging supports symmetrically.
+        for (int i = 0; i < currentlyNotifiedSupportBlocks.Count; i++)
+        {
+            if (currentlyNotifiedSupportBlocks[i] != null)
+                currentlyNotifiedSupportBlocks[i].RemoveAttachedBlockAbove();
+        }
+
+        currentlyNotifiedSupportBlocks.Clear();
     }
 
     /// <summary>
@@ -3566,6 +4141,12 @@ public class LegoBlockGhostManager : MonoBehaviour
 
         visualRootOriginalLocalPosition = visualRoot.localPosition;
         visualRootOriginalLocalRotation = visualRoot.localRotation;
+
+        // TEMPORARY DEBUG - remove once the rotation-drift bug is found.
+        Debug.Log(
+            $"[VISUALROOT DEBUG] Stored '{gameObject.name}' visualRoot defaults: " +
+            $"pos={visualRootOriginalLocalPosition:F4} rot(euler)={visualRootOriginalLocalRotation.eulerAngles:F4}"
+        );
     }
 
     /// <summary>
@@ -3617,7 +4198,7 @@ public class LegoBlockGhostManager : MonoBehaviour
     // Gizmos
     // -------------------------------------------------------------------------
 
-    private void OnDrawGizmos()
+    private void OnDrawGizmosSelected()
     {
         if (!Application.isPlaying)
             return;
@@ -3635,6 +4216,18 @@ public class LegoBlockGhostManager : MonoBehaviour
             }
         }
 
+        // FIX: this used to be in OnDrawGizmos() (runs for EVERY block with
+        // this component, all the time, whether selected or not) - meaning
+        // every single placed block permanently showed a small green wire
+        // sphere at its own transform.position (which, for many block
+        // prefabs, sits at the block's visual CENTER rather than a corner
+        // stud - see the earlier pivot discussion). That's exactly the
+        // "every block has a weird third point in the middle" you were
+        // seeing: it was never a real GameObject (hence nothing extra in the
+        // Hierarchy), just an always-on debug gizmo. Moving this to
+        // OnDrawGizmosSelected keeps it available for debugging one specific
+        // block when you actually click on it, without cluttering every
+        // block in the scene all the time.
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(transform.position, 0.06f);
     }

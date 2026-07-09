@@ -19,7 +19,7 @@ GameObject:
   - component: {fileID: 6150387636925783101}
   - component: {fileID: -7432135419360697454}
   - component: {fileID: 2517574616509753177}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: LegoBlock 2x4x4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -310,6 +310,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   debugSurfaceTargeting: 0
+  debugPlacementFailures: 0
   usePhysicalFloorSocketBlocker: 0
   floorSocketBlockerRayDistance: 0.35
   floorSocketBlockerStartLift: 0.03
@@ -417,6 +418,8 @@ MonoBehaviour:
   studSpacingZ: 0.4
   hideGeneratedSocketRenderers: 0
   drawSocketGizmos: 1
+  drawSocketGizmosAlways: 1
+  drawAllLogicalSocketCells: 1
   gizmoSize: 0.04
   worstCaseReferenceScale: 0.5
   enableSocketCleanup: 1
@@ -544,7 +547,7 @@ GameObject:
   - component: {fileID: 6424939789799742494}
   - component: {fileID: 1437744523752324146}
   - component: {fileID: 8538724737242541973}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: 2x4x4
   m_TagString: Untagged
   m_Icon: {fileID: 0}

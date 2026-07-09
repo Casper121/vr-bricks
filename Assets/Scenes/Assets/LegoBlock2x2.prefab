@@ -18,7 +18,7 @@ GameObject:
   - component: {fileID: -7374926832450508053}
   - component: {fileID: -7132329890625852086}
   - component: {fileID: -7617109476464070630}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: LegoBlock2x2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -502,7 +502,7 @@ GameObject:
   - component: {fileID: 7624335526857711862}
   - component: {fileID: 1384022257361355647}
   - component: {fileID: 1349495385685550422}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: 2x2
   m_TagString: Untagged
   m_Icon: {fileID: 0}

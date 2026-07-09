@@ -242,6 +242,7 @@ public class LegoMusicMenuController : MonoBehaviour
         musicSource.Stop();
         musicSource.time = 0f;
         isPaused = false;
+        hasCurrentSongStarted = false;
         RefreshUI();
     }
 
@@ -544,19 +545,39 @@ public class LegoMusicMenuController : MonoBehaviour
         UpdateMusicSourceVolume();
         musicSource.Play();
         isPaused = false;
+
+        // FIX: AutoPlayNextIfNeeded used to detect "song naturally finished"
+        // by checking musicSource.time > 0 - but Unity resets time back to 0
+        // itself once a non-looping clip finishes, and exactly WHEN it does
+        // that reset relative to our own Update() check varies frame to
+        // frame. That race is exactly why auto-advance worked "sometimes" and
+        // just silently stalled other times. Tracking "has this song actually
+        // started playing" ourselves removes the guesswork entirely - it's
+        // set true here, right after telling the AudioSource to play.
+        hasCurrentSongStarted = true;
+
         RefreshUI();
     }
+
+    private bool hasCurrentSongStarted;
 
     private void AutoPlayNextIfNeeded()
     {
         if (!autoPlayNextSong || musicSource == null || loopSingleSong)
             return;
 
+        if (!hasCurrentSongStarted)
+            return;
+
         if (musicSource.clip == null || musicSource.isPlaying || isPaused)
             return;
 
-        if (musicSource.time > 0f || musicSource.timeSamples > 0)
-            NextSong();
+        // The song genuinely stopped on its own (not paused, not still
+        // playing) after having actually started - that's a real "song
+        // finished" event, regardless of whatever musicSource.time happens
+        // to read right now.
+        hasCurrentSongStarted = false;
+        NextSong();
     }
 
     private void OnProgressSliderChanged(float value)

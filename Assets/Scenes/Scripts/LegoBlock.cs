@@ -301,7 +301,18 @@ public class LegoBlock : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
-        Gizmos.matrix = Matrix4x4.TRS(transform.position + gizmoOffset, transform.rotation, transform.localScale);
+        // FIX: gizmoOffset used to be added directly to transform.position
+        // BEFORE rotation was applied - meaning it acted as a FIXED WORLD-SPACE
+        // offset that never rotated along with the block. At 0/360 degrees
+        // this coincidentally looked identical to the correct version (since
+        // rotating identity does nothing either way), but at any other angle
+        // the offset kept pointing in its original fixed world direction
+        // instead of following the block's own rotation - exactly why the
+        // footprint gizmo appeared to drift away from the visible mesh at
+        // 90/180/270 but never at 0/360. Rotating the offset by
+        // transform.rotation first makes it a proper LOCAL offset that
+        // rotates rigidly together with the block, like everything else here.
+        Gizmos.matrix = Matrix4x4.TRS(transform.position + transform.rotation * gizmoOffset, transform.rotation, transform.localScale);
 
         List<Vector2Int> cells = GetStudFootprint();
 

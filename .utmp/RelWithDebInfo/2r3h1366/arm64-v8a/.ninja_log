@@ -1,10 +1,19 @@
 # ninja log v5
+2967	3132	8048026929507278	A:/vr-bricks-main/vr-bricks/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/2r3h1366/obj/arm64-v8a/libgame.so	cbeea0b51a7213c3
 71	2377	8048026921874557	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	eb0e49c471077bfb
 41	2388	8048026921930175	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	745f37e02e15258c
-1	2410	8048026922216735	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	ad323d7472d04744
-82	2422	8048026922236735	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	9d911fb7d2e5eb87
-31	2546	8048026923586631	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	94a95294408c0b7f
 94	2745	8048026925664139	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	1a5ac0f47a2fc5a1
+1	2410	8048026922216735	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	ad323d7472d04744
+31	2546	8048026923586631	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	94a95294408c0b7f
+82	2422	8048026922236735	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	9d911fb7d2e5eb87
 57	2828	8048026926345012	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	8ed6a42c8883eadb
 10	2966	8048026927830131	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	e4f7320d3b4a4da6
-2967	3132	8048026929507278	A:/vr-bricks-main/vr-bricks/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/2r3h1366/obj/arm64-v8a/libgame.so	cbeea0b51a7213c3
+28	2330	8050752470643666	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	eb0e49c471077bfb
+80	2344	8050752470785713	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	745f37e02e15258c
+70	2374	8050752471067946	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	9d911fb7d2e5eb87
+37	2402	8050752471316443	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	ad323d7472d04744
+47	2508	8050752472394386	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	94a95294408c0b7f
+90	2733	8050752474653865	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	1a5ac0f47a2fc5a1
+59	2831	8050752475610476	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	8ed6a42c8883eadb
+16	2984	8050752477122961	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	e4f7320d3b4a4da6
+2984	3238	8050752479712131	A:/vr-bricks-main/vr-bricks/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/2r3h1366/obj/arm64-v8a/libgame.so	cbeea0b51a7213c3

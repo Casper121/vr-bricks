@@ -3,36 +3,68 @@
   "WorkspaceRootPath": "A:\\vr-bricks-main\\vr-bricks\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|a:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legomenublockheldguard.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legomenublockheldguard.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legoblockghostmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|a:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legoblockghostmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legoblockghostmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|a:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legohandmenu.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legohandmenu.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legosocketspawner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legosocketspawner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legoblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legoblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legopanelmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legopanelmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legoblockdeleter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legoblockdeleter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legowristbuttons.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legowristbuttons.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legohandmenu.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legohandmenu.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\roommapswitcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\roommapswitcher.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Library\\PackageCache\\com.unity.render-pipelines.universal@0d0659f1368d\\Shaders\\Lit.shader||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Library\\PackageCache\\com.unity.render-pipelines.universal@0d0659f1368d\\Shaders\\Lit.shader||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\newemptycsharpscript.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\newemptycsharpscript.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\xrflymode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\xrflymode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legopanelmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legopanelmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legosocketspawner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legosocketspawner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legomenublockheldguard.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legomenublockheldguard.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\RoomMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Scenes\\Scripts\\RoomMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoTwoPanelMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Scenes\\Scripts\\LegoTwoPanelMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\musicmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\musicmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Library\\PackageCache\\com.unity.ugui@473409526770\\Runtime\\UGUI\\EventSystem\\EventSystem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Library\\PackageCache\\com.unity.ugui@473409526770\\Runtime\\UGUI\\EventSystem\\EventSystem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legowristbuttons.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legowristbuttons.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legosocket.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -43,20 +75,12 @@
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legosocketinteractor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\musicmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\musicmenucontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\legoaudiosettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\legoaudiosettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|A:\\vr-bricks-main\\vr-bricks\\assets\\scenes\\scripts\\soundsfxplayer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\soundsfxplayer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoTwoPanelMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Scenes\\Scripts\\LegoTwoPanelMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockAutoClimb.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -71,12 +95,8 @@
       "RelativeMoniker": "D:0:0:{C056D739-DC34-A3FA-29C3-86F72EAA2103}|Assembly-CSharp.csproj|solutionrelative:assets\\scenes\\scripts\\sclaingbuttons.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Library\\PackageCache\\com.unity.render-pipelines.universal@0d0659f1368d\\Shaders\\Lit.shader||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Library\\PackageCache\\com.unity.render-pipelines.universal@0d0659f1368d\\Shaders\\Lit.shader||{3B902123-F8A7-4915-9F01-361F908088D0}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\RoomMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Scenes\\Scripts\\RoomMenuController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\VrLoadingFadeSphere.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Scenes\\Scripts\\VrLoadingFadeSphere.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -86,44 +106,19 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 10,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "LegoMenuBlockHeldGuard.cs",
-              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
-              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
-              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
-              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
-              "ViewState": "AgIAAGEAAAAAAAAAAAAkwIsAAAArAAAAAAAAAA==",
+              "DocumentIndex": 2,
+              "Title": "LegoBlockDeleter.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockDeleter.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoBlockDeleter.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockDeleter.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoBlockDeleter.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-05T14:05:06.148Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "LegoBlock.cs",
-              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlock.cs",
-              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoBlock.cs",
-              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlock.cs",
-              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoBlock.cs",
-              "ViewState": "AgIAABIBAAAAAAAAAAAIwEQBAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-04T12:40:37.103Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "Legowristbuttons.cs",
-              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
-              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
-              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
-              "RelativeToolTip": "Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
-              "ViewState": "AgIAACcAAAAAAAAAAAAIwFkAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-04T09:42:49.553Z"
+              "WhenOpened": "2026-07-08T15:24:31.578Z"
             },
             {
               "$type": "Document",
@@ -133,38 +128,37 @@
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\XRFlyMode.cs",
               "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\XRFlyMode.cs",
               "RelativeToolTip": "Assets\\Scenes\\Scripts\\XRFlyMode.cs",
-              "ViewState": "AgIAAJcAAAAAAAAAAAAIwMkAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAADUBAAAAAAAAAAAIwGcBAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-07-04T09:42:32.255Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "LegoHandMenu.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoHandMenu.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoHandMenu.cs",
               "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoHandMenu.cs",
               "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoHandMenu.cs",
-              "ViewState": "AgIAAH0EAAAAAAAAAAAIwK8EAAABAAAAAAAAAA==",
+              "ViewState": "AgIAANsEAAAAAAAAAADwv/0EAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-04T06:02:01.448Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-07-04T06:02:01.448Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 8,
               "Title": "LegoPanelMenuController.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoPanelMenuController.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoPanelMenuController.cs",
               "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoPanelMenuController.cs",
               "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoPanelMenuController.cs",
-              "ViewState": "AgIAANECAAAAAAAAAAAIwAMDAAABAAAAAAAAAA==",
+              "ViewState": "AgIAANwCAAAAAAAAAAAIwA4DAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-07-04T06:00:06.473Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 18,
               "Title": "LegoAudioSettings.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoAudioSettings.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoAudioSettings.cs",
@@ -176,7 +170,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
+              "DocumentIndex": 19,
               "Title": "SoundSfxPlayer.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\SoundSfxPlayer.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\SoundSfxPlayer.cs",
@@ -188,7 +182,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
+              "DocumentIndex": 12,
               "Title": "LegoTwoPanelMenuController.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoTwoPanelMenuController.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoTwoPanelMenuController.cs",
@@ -199,19 +193,55 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 18,
+              "DocumentIndex": 11,
               "Title": "RoomMenuController.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\RoomMenuController.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\RoomMenuController.cs",
               "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\RoomMenuController.cs",
               "RelativeToolTip": "Assets\\Scenes\\Scripts\\RoomMenuController.cs",
-              "ViewState": "AgIAAKkAAAAAAAAAAAAIwM0AAABYAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-07-03T16:41:15.23Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 17,
+              "DocumentIndex": 13,
+              "Title": "MusicMenuController.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\MusicMenuController.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\MusicMenuController.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\MusicMenuController.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\MusicMenuController.cs",
+              "ViewState": "AgIAAEkDAAAAAAAAAAAIwGEDAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-04T05:18:04.29Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "LegoSocketSpawner.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
+              "ViewState": "AgIAAE0DAAAAAAAAAAAQwH8DAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-03T08:36:59.198Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "LegoBlockGhostManager.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
+              "ViewState": "AgIAAFgQAAAAAAAAAAAkwIkQAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-03T14:02:02.629Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "Lit.shader",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Library\\PackageCache\\com.unity.render-pipelines.universal@0d0659f1368d\\Shaders\\Lit.shader",
               "RelativeDocumentMoniker": "Library\\PackageCache\\com.unity.render-pipelines.universal@0d0659f1368d\\Shaders\\Lit.shader",
@@ -223,7 +253,91 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "LegoBlock.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlock.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoBlock.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlock.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoBlock.cs",
+              "ViewState": "AgIAABwBAAAAAAAAAAAIwE4BAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-04T12:40:37.103Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "RoomMapSwitcher.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\RoomMapSwitcher.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\RoomMapSwitcher.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\RoomMapSwitcher.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\RoomMapSwitcher.cs",
+              "ViewState": "AgIAANQBAAAAAAAAAAAIwAYCAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-05T17:09:12.807Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "NewEmptyCSharpScript.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\NewEmptyCSharpScript.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\NewEmptyCSharpScript.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\NewEmptyCSharpScript.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\NewEmptyCSharpScript.cs",
+              "ViewState": "AgIAAJ0AAAAAAAAAAAAIwM8AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-08T09:47:29.853Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "Legowristbuttons.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\Legowristbuttons.cs",
+              "ViewState": "AgIAACcAAAAAAAAAAAAIwFkAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-04T09:42:49.553Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "LegoMenuBlockHeldGuard.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoMenuBlockHeldGuard.cs",
+              "ViewState": "AgIAAGEAAAAAAAAAAAAkwIYAAAA2AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-05T14:05:06.148Z"
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 14,
+              "Title": "EventSystem.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Library\\PackageCache\\com.unity.ugui@473409526770\\Runtime\\UGUI\\EventSystem\\EventSystem.cs",
+              "RelativeDocumentMoniker": "Library\\PackageCache\\com.unity.ugui@473409526770\\Runtime\\UGUI\\EventSystem\\EventSystem.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Library\\PackageCache\\com.unity.ugui@473409526770\\Runtime\\UGUI\\EventSystem\\EventSystem.cs",
+              "RelativeToolTip": "Library\\PackageCache\\com.unity.ugui@473409526770\\Runtime\\UGUI\\EventSystem\\EventSystem.cs",
+              "ViewState": "AgIAAPYBAAAAAAAAAAD4vw8CAACrAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-06T08:24:09.309Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "VrLoadingFadeSphere.cs",
+              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\VrLoadingFadeSphere.cs",
+              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\VrLoadingFadeSphere.cs",
+              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\VrLoadingFadeSphere.cs",
+              "RelativeToolTip": "Assets\\Scenes\\Scripts\\VrLoadingFadeSphere.cs",
+              "ViewState": "AgIAAEUAAAAAAAAAAAAgwHUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-06T08:11:50.805Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
               "Title": "LegoBlockAutoClimb.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockAutoClimb.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoBlockAutoClimb.cs",
@@ -235,44 +349,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "LegoBlockGhostManager.cs",
-              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
-              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
-              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
-              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoBlockGhostManager.cs",
-              "ViewState": "AgIAAAcOAAAAAAAAAAAkwDgOAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-03T14:02:02.629Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "LegoSocketSpawner.cs",
-              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
-              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
-              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
-              "RelativeToolTip": "Assets\\Scenes\\Scripts\\LegoSocketSpawner.cs",
-              "ViewState": "AgIAAE0DAAAAAAAAAAAIwH8DAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-03T08:36:59.198Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
-              "Title": "MusicMenuController.cs",
-              "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\MusicMenuController.cs",
-              "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\MusicMenuController.cs",
-              "ToolTip": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\MusicMenuController.cs",
-              "RelativeToolTip": "Assets\\Scenes\\Scripts\\MusicMenuController.cs",
-              "ViewState": "AgIAADQDAAAAAAAAAAAIwGYDAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-04T05:18:04.29Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 16,
               "Title": "LegoSocket.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoSocket.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoSocket.cs",
@@ -284,7 +361,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 17,
               "Title": "LegoSocketInteractor.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoSocketInteractor.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoSocketInteractor.cs",
@@ -296,7 +373,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 16,
+              "DocumentIndex": 22,
               "Title": "sclaingbuttons.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\sclaingbuttons.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\sclaingbuttons.cs",
@@ -308,7 +385,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 15,
+              "DocumentIndex": 21,
               "Title": "LegoScaleMenu.cs",
               "DocumentMoniker": "A:\\vr-bricks-main\\vr-bricks\\Assets\\Scenes\\Scripts\\LegoScaleMenu.cs",
               "RelativeDocumentMoniker": "Assets\\Scenes\\Scripts\\LegoScaleMenu.cs",

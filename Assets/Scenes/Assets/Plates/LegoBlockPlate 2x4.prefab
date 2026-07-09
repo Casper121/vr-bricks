@@ -18,7 +18,7 @@ GameObject:
   - component: {fileID: 8838349980291895072}
   - component: {fileID: -2508335217933062076}
   - component: {fileID: 752086497408636514}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: LegoBlockPlate 2x4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -276,6 +276,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   debugSurfaceTargeting: 0
+  debugPlacementFailures: 0
   usePhysicalFloorSocketBlocker: 0
   floorSocketBlockerRayDistance: 0.35
   floorSocketBlockerStartLift: 0.03
@@ -297,6 +298,8 @@ MonoBehaviour:
   scaledNegativeSocketYMultiplier: 1
   scaledNegativeSocketYFineTune: 0
   visualRoot: {fileID: 6454290987429503849}
+  rotationSearchGracePeriod: 0.5
+  rotationSearchGraceMoveDistance: 0.15
   Snapped:
     m_PersistentCalls:
       m_Calls:
@@ -372,6 +375,8 @@ MonoBehaviour:
   studSpacingZ: 0.4
   hideGeneratedSocketRenderers: 0
   drawSocketGizmos: 1
+  drawSocketGizmosAlways: 1
+  drawAllLogicalSocketCells: 1
   gizmoSize: 0.04
   worstCaseReferenceScale: 0.5
   enableSocketCleanup: 1
@@ -499,7 +504,7 @@ GameObject:
   - component: {fileID: 6454290987429503849}
   - component: {fileID: 3610714758458444948}
   - component: {fileID: 832306226924203753}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: 2x4
   m_TagString: Untagged
   m_Icon: {fileID: 0}

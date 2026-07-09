@@ -1028,16 +1028,17 @@ public class LegoHandMenu : MonoBehaviour
         if (entry == null || entry.blockPrefab == null)
             return;
 
+        // FIX: this used to compute a rotation facing the camera (even after
+        // snapping to the nearest 90 degrees) - but that's still a DIFFERENT
+        // rotation than the prefab's own authored default (typically
+        // identity/0,0,0). Dragging the same prefab into the scene by hand
+        // uses its stored default rotation and looks perfectly correct;
+        // spawning it at any other rotation exposed a mismatch between the
+        // visual mesh and the logical footprint/collider that only lines up
+        // right at the prefab's own original orientation. Always spawning at
+        // Quaternion.identity makes a button-spawned block byte-for-byte
+        // match what dragging the prefab in manually would give you.
         Quaternion spawnRot = Quaternion.identity;
-
-        if (mainCamera != null)
-        {
-            Vector3 flat = mainCamera.transform.forward;
-            flat.y = 0f;
-
-            if (flat.sqrMagnitude > 0.001f)
-                spawnRot = Quaternion.LookRotation(flat.normalized);
-        }
 
         Vector3 spawnPos = GetSpawnPosition(entry.blockPrefab, spawnRot);
 
@@ -1048,19 +1049,23 @@ public class LegoHandMenu : MonoBehaviour
 
         foreach (Renderer r in block.GetComponentsInChildren<Renderer>())
         {
+            // FIX: "one face doesn't get colored" - r.material only reads/writes
+            // the FIRST material slot. A wedge/triangle block's renderer often
+            // has MULTIPLE material slots (e.g. one for the sloped face, one
+            // for the sides) - using .material left every slot after the first
+            // completely untouched, keeping its original, uncolored look.
+            // .materials (plural) covers every slot on this renderer.
             Material[] mats = r.materials;
 
             for (int i = 0; i < mats.Length; i++)
             {
-                Material matCopy = new Material(mats[i]);
+                Material mat = mats[i];
 
-                if (matCopy.HasProperty("_Color"))
-                    matCopy.color = selectedColor;
+                if (mat.HasProperty("_Color"))
+                    mat.color = selectedColor;
 
-                if (matCopy.HasProperty("_BaseColor"))
-                    matCopy.SetColor("_BaseColor", selectedColor);
-
-                mats[i] = matCopy;
+                if (mat.HasProperty("_BaseColor"))
+                    mat.SetColor("_BaseColor", selectedColor);
             }
 
             r.materials = mats;
@@ -1120,23 +1125,56 @@ public class LegoHandMenu : MonoBehaviour
         return targetPos + sideOffset + Vector3.up * 0.5f;
     }
 
+    [Tooltip("Layers that count as room boundaries (walls) that block spawning through them. Leave on Everything if unsure - as long as your walls have colliders, this works automatically.")]
+    public LayerMask wallBlockMask = ~0;
+
+    [Tooltip("Safety gap kept between the spawn point and a detected wall, so blocks don't spawn clipped right into it.")]
+    public float wallSpawnMargin = 0.15f;
+
     private Vector3 GetSpawnTargetPoint()
     {
+        Vector3 origin;
+        Vector3 forward;
+
         if (mainCamera != null)
         {
-            Vector3 forward = mainCamera.transform.forward;
+            origin = mainCamera.transform.position;
+            forward = mainCamera.transform.forward;
             forward.y = 0f;
 
             if (forward.sqrMagnitude < 0.001f)
                 forward = mainCamera.transform.forward;
-
-            return mainCamera.transform.position + forward.normalized * spawnDistance;
+        }
+        else if (leftHandTransform != null)
+        {
+            origin = leftHandTransform.position;
+            forward = leftHandTransform.forward;
+        }
+        else
+        {
+            origin = transform.position;
+            forward = transform.forward;
         }
 
-        if (leftHandTransform != null)
-            return leftHandTransform.position + leftHandTransform.forward * spawnDistance;
+        forward.Normalize();
 
-        return transform.position + transform.forward * spawnDistance;
+        // FIX: previously this always projected spawnDistance meters forward,
+        // with no regard for walls in between - standing close to a wall and
+        // facing it made blocks spawn on the OTHER side of it (outside the
+        // room), since only a downward raycast for the floor was ever done,
+        // never a check for something blocking the forward direction itself.
+        // A horizontal raycast against the room's own wall colliders (the
+        // same ones that already stop the player from walking through them)
+        // now clamps the spawn distance to stay safely on this side of any
+        // wall in the way.
+        float clampedDistance = spawnDistance;
+
+        if (Physics.Raycast(origin, forward, out RaycastHit wallHit, spawnDistance, wallBlockMask, QueryTriggerInteraction.Ignore))
+        {
+            clampedDistance = Mathf.Max(0f, wallHit.distance - wallSpawnMargin);
+        }
+
+        return origin + forward * clampedDistance;
     }
 
     private float GetPrefabBottomOffset(GameObject prefab, Quaternion spawnRotation)
@@ -1144,28 +1182,80 @@ public class LegoHandMenu : MonoBehaviour
         if (prefab == null)
             return 0.1f;
 
-        GameObject temp = Instantiate(prefab, Vector3.zero, spawnRotation);
-        temp.transform.localScale = Vector3.one * LegoScaleMenu.CurrentScale;
-        temp.SetActive(false);
+        // FIX: this used to Instantiate() a full temporary copy of the prefab
+        // (complete with LegoBlockGhostManager, colliders, Rigidbody - every
+        // component) purely to measure its bounds, then Destroy() it a moment
+        // later. That's an extra Awake()/Start() cycle on a whole throwaway
+        // block that never happens when you simply drag the prefab into the
+        // scene by hand - and turned out to be exactly the difference between
+        // "spawned via button" (corrupted VisualRoot rotation) and "dragged in
+        // manually" (always correct). Instead of instantiating anything, this
+        // walks the PREFAB ASSET's own mesh/transform data directly to
+        // compute the same bottom-offset number, with zero side effects.
+        MeshFilter[] filters = prefab.GetComponentsInChildren<MeshFilter>(true);
 
-        Renderer[] tempRenderers = temp.GetComponentsInChildren<Renderer>();
-
-        if (tempRenderers.Length == 0)
-        {
-            Destroy(temp);
+        if (filters.Length == 0)
             return 0.1f;
+
+        float scale = LegoScaleMenu.CurrentScale;
+        Matrix4x4 rootMatrix = Matrix4x4.TRS(Vector3.zero, spawnRotation, Vector3.one * scale);
+
+        float minY = float.MaxValue;
+        bool foundAny = false;
+
+        foreach (MeshFilter filter in filters)
+        {
+            if (filter.sharedMesh == null)
+                continue;
+
+            Bounds localBounds = filter.sharedMesh.bounds;
+
+            // Accumulate this renderer's local-to-root matrix by walking up
+            // the prefab's own hierarchy (skipping the root itself, since the
+            // root's transform is replaced by rootMatrix above to match
+            // exactly what Instantiate(prefab, position, spawnRotation) would
+            // produce).
+            Matrix4x4 localToRoot = Matrix4x4.identity;
+            Transform t = filter.transform;
+
+            while (t != null && t != prefab.transform)
+            {
+                Matrix4x4 localMatrix = Matrix4x4.TRS(t.localPosition, t.localRotation, t.localScale);
+                localToRoot = localMatrix * localToRoot;
+                t = t.parent;
+            }
+
+            Matrix4x4 fullMatrix = rootMatrix * localToRoot;
+
+            Vector3 center = localBounds.center;
+            Vector3 extents = localBounds.extents;
+
+            for (int xSign = -1; xSign <= 1; xSign += 2)
+            {
+                for (int ySign = -1; ySign <= 1; ySign += 2)
+                {
+                    for (int zSign = -1; zSign <= 1; zSign += 2)
+                    {
+                        Vector3 localCorner = center + new Vector3(xSign * extents.x, ySign * extents.y, zSign * extents.z);
+                        Vector3 worldCorner = fullMatrix.MultiplyPoint3x4(localCorner);
+
+                        if (worldCorner.y < minY)
+                            minY = worldCorner.y;
+
+                        foundAny = true;
+                    }
+                }
+            }
         }
 
-        Bounds bounds = tempRenderers[0].bounds;
+        if (!foundAny)
+            return 0.1f;
 
-        for (int i = 1; i < tempRenderers.Length; i++)
-            bounds.Encapsulate(tempRenderers[i].bounds);
-
-        float bottomOffset = temp.transform.position.y - bounds.min.y;
-
-        Destroy(temp);
-
-        return bottomOffset;
+        // rootMatrix places the root at world Y=0, so the bottom offset
+        // (how far above its own pivot the root needs to sit so its lowest
+        // point touches the floor) is simply the negative of the lowest
+        // corner found.
+        return -minY;
     }
 
     private class PickerDragTarget : MonoBehaviour,
